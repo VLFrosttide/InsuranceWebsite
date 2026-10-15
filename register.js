@@ -24,6 +24,10 @@ async function doRegister() {
     setMessage(t("register.enterCredentials"), true);
     return;
   }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    setMessage(t("register.enterEmail"), true);
+    return;
+  }
   if (password.length < 6) {
     setMessage(t("register.passwordTooShort"), true);
     return;
