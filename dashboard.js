@@ -304,8 +304,8 @@ async function selectBroker(id) {
 
   renderBanner(b);
   InactivePoliciesPanel.classList.add("hidden");
-  policiesDate = localDateString(new Date());
-  PoliciesDate.value = policiesDate;
+  policiesDate = "";
+  PoliciesDate.value = "";
   policySort = { key: "created", dir: -1 };
 
   EmptyState.classList.add("hidden");
