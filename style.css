@@ -547,6 +547,44 @@ body {
   color: var(--muted);
 }
 
+.history-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.history-filter-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.history-filters input[type="date"] {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.history-filters input[type="date"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.history-pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.history-pager span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .report-table th.sortable {
   cursor: pointer;
   user-select: none;
