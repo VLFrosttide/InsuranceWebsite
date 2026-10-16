@@ -38,7 +38,7 @@
                         <h2 id="DetailName"></h2>
                         <div class="detail-actions">
                             <button id="PoliciesBtn" class="btn-primary" type="button" data-i18n="policies.button">Policies</button>
-                            <button id="InactivePoliciesBtn" class="btn-primary" type="button" data-i18n="inactive.button">Empty blancs</button>
+                            <button id="InactivePoliciesBtn" class="btn-primary" type="button" data-i18n="inactive.button">Blancs</button>
                         </div>
                     </div>
                     <div id="PaymentBanner" class="banner" hidden></div>
@@ -86,7 +86,11 @@
                         </div>
                         <div class="policies-controls">
                             <label class="history-filter-label" for="PoliciesDate" data-i18n="policies.date">Date</label>
-                            <input id="PoliciesDate" type="date" />
+                            <input id="PoliciesDate" type="text" class="date-input" readonly autocomplete="off"
+                                   data-i18n-placeholder="policies.date.placeholder" placeholder="dd/mm/yyyy" />
+                            <button id="PoliciesDateClear" type="button" class="date-clear hidden"
+                                    data-i18n="policies.date.clear">Clear</button>
+                            <input id="PoliciesDatePicker" type="date" class="date-picker-native" tabindex="-1" aria-hidden="true" />
                             <span id="PoliciesTotalBalance" class="policies-total"></span>
                         </div>
                     </div>

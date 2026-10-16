@@ -559,18 +559,46 @@ body {
   gap: 10px;
 }
 
-.policies-controls input[type="date"] {
+.date-input {
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text);
   font-size: 13px;
+  cursor: pointer;
+  min-width: 110px;
 }
 
-.policies-controls input[type="date"]:focus {
+.date-input:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.date-clear {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.date-clear:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.date-picker-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  clip-path: inset(50%);
+  pointer-events: none;
 }
 
 .policies-total {

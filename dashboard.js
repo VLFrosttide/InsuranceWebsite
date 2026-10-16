@@ -41,6 +41,8 @@ const InactivePoliciesPanel = document.getElementById("InactivePoliciesPanel");
 const InactivePoliciesRows = document.getElementById("InactivePoliciesRows");
 const InactivePoliciesCount = document.getElementById("InactivePoliciesCount");
 const PoliciesDate = document.getElementById("PoliciesDate");
+const PoliciesDatePicker = document.getElementById("PoliciesDatePicker");
+const PoliciesDateClear = document.getElementById("PoliciesDateClear");
 const PoliciesTotalBalance = document.getElementById("PoliciesTotalBalance");
 
 UserName.textContent = getUsername();
@@ -164,6 +166,38 @@ function filteredPolicies() {
   return policiesData.filter((p) => policyDay(p) === policiesDate);
 }
 
+const DATE_LOCALES = { en: "en-GB", bg: "bg-BG", tr: "tr-TR" };
+
+// Format a YYYY-MM-DD filter value into the language-appropriate short date.
+function formatPoliciesDateValue(value) {
+  if (!value) return "";
+  const d = toDate(value);
+  if (!d) return String(value);
+  try {
+    return new Intl.DateTimeFormat(DATE_LOCALES[getLang()] || "en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(d);
+  } catch {
+    return formatDate(d);
+  }
+}
+
+// Keep the visible text field and its clear button in sync with `policiesDate`.
+function syncPoliciesDateField() {
+  PoliciesDate.value = formatPoliciesDateValue(policiesDate);
+  PoliciesDateClear.classList.toggle("hidden", !policiesDate);
+}
+
+// Apply a new filter date (YYYY-MM-DD) and re-render the policies table.
+function setPoliciesDateFilter(value) {
+  policiesDate = value || "";
+  PoliciesDatePicker.value = policiesDate;
+  syncPoliciesDateField();
+  renderPolicyTable();
+}
+
 function renderPoliciesTotal() {
   const total = filteredPolicies().reduce((sum, p) => sum + Number(p.Price || 0), 0);
   PoliciesTotalBalance.textContent =
@@ -260,10 +294,20 @@ document.querySelectorAll("#PoliciesPanel th[data-sort]").forEach((th) => {
   });
 });
 
-PoliciesDate.addEventListener("change", () => {
-  policiesDate = PoliciesDate.value || "";
-  renderPolicyTable();
+PoliciesDate.addEventListener("click", () => {
+  if (!selectedId) return;
+  try {
+    PoliciesDatePicker.showPicker();
+  } catch {
+    PoliciesDatePicker.focus();
+  }
 });
+
+PoliciesDatePicker.addEventListener("change", () => {
+  setPoliciesDateFilter(PoliciesDatePicker.value || "");
+});
+
+PoliciesDateClear.addEventListener("click", () => setPoliciesDateFilter(""));
 
 async function selectBroker(id) {
   selectedId = id;
@@ -305,13 +349,14 @@ async function selectBroker(id) {
   renderBanner(b);
   InactivePoliciesPanel.classList.add("hidden");
   policiesDate = "";
-  PoliciesDate.value = "";
+  PoliciesDatePicker.value = "";
+  syncPoliciesDateField();
   policySort = { key: "created", dir: -1 };
 
   EmptyState.classList.add("hidden");
   Detail.classList.remove("hidden");
 
-  loadPolicies();
+  await loadPolicies();
 }
 
 BrokerSearch.addEventListener("input", renderBrokerList);
@@ -405,7 +450,7 @@ async function load() {
     brokers = data.brokers || [];
     schedule = data.schedule || null;
     renderBrokerList();
-    if (brokers.length > 0) selectBroker(brokers[0].id);
+    if (brokers.length > 0) await selectBroker(brokers[0].id);
   } catch (err) {
     if (err.status === 401 || err.status === 403) {
       clearSession();
