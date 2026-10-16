@@ -39,7 +39,6 @@
                         <div class="detail-actions">
                             <button id="PoliciesBtn" class="btn-primary" type="button" data-i18n="policies.button">Policies</button>
                             <button id="InactivePoliciesBtn" class="btn-primary" type="button" data-i18n="inactive.button">Inactive policies</button>
-                            <button id="HistoryBtn" class="btn-primary" type="button" data-i18n="history.button">History</button>
                         </div>
                     </div>
                     <div id="PaymentBanner" class="banner" hidden></div>
@@ -81,8 +80,15 @@
 
                 <div id="PoliciesPanel" class="policies-panel hidden">
                     <div class="policies-head">
-                        <h3 data-i18n="policies.title">Policies since last payment</h3>
-                        <span id="PoliciesSince" class="policies-since"></span>
+                        <div class="policies-title">
+                            <h3 data-i18n="policies.title">Policies since last payment</h3>
+                            <span id="PoliciesSince" class="policies-since"></span>
+                        </div>
+                        <div class="policies-controls">
+                            <label class="history-filter-label" for="PoliciesDate" data-i18n="policies.date">Date</label>
+                            <input id="PoliciesDate" type="date" />
+                            <span id="PoliciesTotalBalance" class="policies-total"></span>
+                        </div>
                     </div>
                     <div class="table-wrap">
                         <table class="report-table">
@@ -115,34 +121,6 @@
                             <tbody id="InactivePoliciesRows"></tbody>
                         </table>
                     </div>
-                </div>
-
-                <div id="HistoryPanel" class="policies-panel hidden">
-                    <div class="policies-head">
-                        <h3 data-i18n="history.title">Balance history</h3>
-                        <span id="HistorySummary" class="policies-since"></span>
-                    </div>
-                    <div class="history-filters">
-                        <span class="history-filter-label" data-i18n="history.date">Date</span>
-                        <input id="HistoryDate" type="date" />
-                        <button id="HistoryClearBtn" type="button" class="btn-ghost btn-small" data-i18n="history.clear">Clear</button>
-                    </div>
-                    <div class="table-wrap">
-                        <table class="report-table">
-                            <thead>
-                                <tr>
-                                    <th data-i18n="history.date">Date</th>
-                                    <th data-i18n="history.type">Type</th>
-                                    <th data-i18n="history.blankNo">Blank No.</th>
-                                    <th data-i18n="history.reason">Reason</th>
-                                    <th class="num" data-i18n="history.amount">Amount</th>
-                                    <th class="num" data-i18n="history.balanceAfter">Balance after</th>
-                                </tr>
-                            </thead>
-                            <tbody id="HistoryRows"></tbody>
-                        </table>
-                    </div>
-                    <div id="HistoryPager" class="history-pager"></div>
                 </div>
             </div>
         </section>

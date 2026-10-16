@@ -40,13 +40,8 @@ const InactivePoliciesBtn = document.getElementById("InactivePoliciesBtn");
 const InactivePoliciesPanel = document.getElementById("InactivePoliciesPanel");
 const InactivePoliciesRows = document.getElementById("InactivePoliciesRows");
 const InactivePoliciesCount = document.getElementById("InactivePoliciesCount");
-const HistoryBtn = document.getElementById("HistoryBtn");
-const HistoryPanel = document.getElementById("HistoryPanel");
-const HistoryRows = document.getElementById("HistoryRows");
-const HistorySummary = document.getElementById("HistorySummary");
-const HistoryDate = document.getElementById("HistoryDate");
-const HistoryClearBtn = document.getElementById("HistoryClearBtn");
-const HistoryPager = document.getElementById("HistoryPager");
+const PoliciesDate = document.getElementById("PoliciesDate");
+const PoliciesTotalBalance = document.getElementById("PoliciesTotalBalance");
 
 UserName.textContent = getUsername();
 LogoutBtn.addEventListener("click", () => {
@@ -149,6 +144,31 @@ function renderBanner(b) {
 
 let policiesData = [];
 let policySort = { key: "created", dir: -1 };
+let policiesDate = "";
+
+// Local calendar day as "YYYY-MM-DD" (built from local components, so the day
+// never shifts around midnight).
+function localDateString(d = new Date()) {
+  const p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+}
+
+// Local calendar day of a policy's creation date, as "YYYY-MM-DD".
+function policyDay(p) {
+  const d = toDate(p.CreationDate);
+  return d ? localDateString(d) : "";
+}
+
+function filteredPolicies() {
+  if (!policiesDate) return policiesData.slice();
+  return policiesData.filter((p) => policyDay(p) === policiesDate);
+}
+
+function renderPoliciesTotal() {
+  const total = filteredPolicies().reduce((sum, p) => sum + Number(p.Price || 0), 0);
+  PoliciesTotalBalance.textContent =
+    t("policies.totalBalance") + ": " + formatMoney(total);
+}
 
 function policySortValue(p) {
   if (policySort.key === "created") {
@@ -176,7 +196,7 @@ function comparePolicies(a, b) {
 }
 
 function sortedPolicies() {
-  const arr = policiesData.slice();
+  const arr = filteredPolicies();
   arr.sort((a, b) => comparePolicies(a, b) * policySort.dir);
   return arr;
 }
@@ -215,14 +235,16 @@ function renderPolicyTable() {
     PoliciesRows.appendChild(row);
   }
   if (policies.length === 0) {
+    const emptyMessage = policiesDate ? t("policies.emptyForDate") : t("policies.empty");
     const row = document.createElement("tr");
     row.innerHTML =
       '<td colspan="5" class="policies-empty">' +
-      escapeHtml(t("policies.empty")) +
+      escapeHtml(emptyMessage) +
       "</td>";
     PoliciesRows.appendChild(row);
   }
   updatePolicySortHeaders();
+  renderPoliciesTotal();
 }
 
 document.querySelectorAll("#PoliciesPanel th[data-sort]").forEach((th) => {
@@ -238,7 +260,12 @@ document.querySelectorAll("#PoliciesPanel th[data-sort]").forEach((th) => {
   });
 });
 
-function selectBroker(id) {
+PoliciesDate.addEventListener("change", () => {
+  policiesDate = PoliciesDate.value || "";
+  renderPolicyTable();
+});
+
+async function selectBroker(id) {
   selectedId = id;
   renderBrokerList();
 
@@ -276,31 +303,26 @@ function selectBroker(id) {
   StatPolicies.textContent = totalPolicies;
 
   renderBanner(b);
-  PoliciesPanel.classList.add("hidden");
   InactivePoliciesPanel.classList.add("hidden");
-  HistoryPanel.classList.add("hidden");
-  HistoryDate.value = "";
-  historyPage = 1;
-  historyDate = "";
+  policiesDate = localDateString(new Date());
+  PoliciesDate.value = policiesDate;
+  policySort = { key: "created", dir: -1 };
 
   EmptyState.classList.add("hidden");
   Detail.classList.remove("hidden");
+
+  loadPolicies();
 }
 
 BrokerSearch.addEventListener("input", renderBrokerList);
 
-PoliciesBtn.addEventListener("click", async () => {
+async function loadPolicies() {
   if (!selectedId) return;
-  if (!PoliciesPanel.classList.contains("hidden")) {
-    PoliciesPanel.classList.add("hidden");
-    return;
-  }
   try {
     const data = await api("/brokers/" + selectedId + "/policies");
     renderPolicies(data);
     PoliciesPanel.classList.remove("hidden");
     InactivePoliciesPanel.classList.add("hidden");
-    HistoryPanel.classList.add("hidden");
   } catch (err) {
     PoliciesRows.innerHTML = "";
     const row = document.createElement("tr");
@@ -309,9 +331,20 @@ PoliciesBtn.addEventListener("click", async () => {
       escapeHtml(err.message || t("policies.loadFailed")) +
       "</td>";
     PoliciesRows.appendChild(row);
-    HistoryPanel.classList.add("hidden");
+    PoliciesTotalBalance.textContent = "";
     PoliciesPanel.classList.remove("hidden");
+    InactivePoliciesPanel.classList.add("hidden");
   }
+}
+
+PoliciesBtn.addEventListener("click", async () => {
+  if (!selectedId) return;
+  if (!PoliciesPanel.classList.contains("hidden")) {
+    PoliciesPanel.classList.add("hidden");
+    InactivePoliciesPanel.classList.add("hidden");
+    return;
+  }
+  await loadPolicies();
 });
 
 InactivePoliciesBtn.addEventListener("click", async () => {
@@ -325,7 +358,6 @@ InactivePoliciesBtn.addEventListener("click", async () => {
     renderInactivePolicies(data);
     InactivePoliciesPanel.classList.remove("hidden");
     PoliciesPanel.classList.add("hidden");
-    HistoryPanel.classList.add("hidden");
   } catch (err) {
     InactivePoliciesRows.innerHTML = "";
     const row = document.createElement("tr");
@@ -337,7 +369,6 @@ InactivePoliciesBtn.addEventListener("click", async () => {
     InactivePoliciesCount.textContent = "";
     InactivePoliciesPanel.classList.remove("hidden");
     PoliciesPanel.classList.add("hidden");
-    HistoryPanel.classList.add("hidden");
   }
 });
 
@@ -367,179 +398,6 @@ function renderInactivePolicies(data) {
   }
   InactivePoliciesCount.textContent = t("list.inactive", { n: list.length });
 }
-
-// --- Broker balance history ------------------------------------------------
-
-let historyPage = 1;
-let historyDate = "";
-
-// The broker whose history we are allowed to show. A broker-linked client is
-// pinned to their own broker id regardless of what is selected, so they can
-// never fetch another broker's history (the server enforces this too).
-function historyBrokerId() {
-  if (isBroker) {
-    const own = getBrokerId();
-    if (own) return Number(own);
-  }
-  return selectedId;
-}
-
-// Local calendar day as "YYYY-MM-DD" (built from local components, so the day
-// never shifts around midnight).
-function localDateString(d = new Date()) {
-  const p = (n) => String(n).padStart(2, "0");
-  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
-}
-
-// "YYYY-MM-DD" one calendar day after the given local date string.
-function nextLocalDate(dateString) {
-  const [y, m, d] = dateString.split("-").map(Number);
-  return localDateString(new Date(y, m - 1, d + 1));
-}
-
-// "YYYY-MM-DD HH:MM:SS" (local) -> "dd-mm-yy HH:mm", matching the desktop client.
-function formatDateTime(value) {
-  if (value === undefined || value === null || value === "") return "";
-  const s = String(value).trim();
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/);
-  const d = m
-    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]))
-    : new Date(s);
-  if (Number.isNaN(d.getTime())) return String(value);
-  const p = (n) => String(n).padStart(2, "0");
-  return (
-    p(d.getDate()) + "-" + p(d.getMonth() + 1) + "-" + String(d.getFullYear()).slice(-2) +
-    " " + p(d.getHours()) + ":" + p(d.getMinutes())
-  );
-}
-
-// Label for a broker balance movement type. Unknown types are shown as they are.
-function movementTypeLabel(type) {
-  const key = "movement." + type;
-  const label = t(key);
-  return label === key ? type || "" : label;
-}
-
-function renderHistoryPager(totalPages, page) {
-  HistoryPager.innerHTML = "";
-
-  const info = document.createElement("span");
-  info.textContent = t("history.pageOf", { page, total: totalPages });
-
-  const prev = document.createElement("button");
-  prev.type = "button";
-  prev.className = "btn-ghost btn-small";
-  prev.textContent = t("history.previous");
-  prev.disabled = page <= 1;
-  prev.addEventListener("click", () => {
-    historyPage = page - 1;
-    loadHistory();
-  });
-
-  const next = document.createElement("button");
-  next.type = "button";
-  next.className = "btn-ghost btn-small";
-  next.textContent = t("history.next");
-  next.disabled = page >= totalPages;
-  next.addEventListener("click", () => {
-    historyPage = page + 1;
-    loadHistory();
-  });
-
-  HistoryPager.appendChild(prev);
-  HistoryPager.appendChild(info);
-  HistoryPager.appendChild(next);
-}
-
-function renderHistory(data) {
-  HistoryRows.innerHTML = "";
-  const movements = data.movements || [];
-
-  if (movements.length === 0) {
-    const tr = document.createElement("tr");
-    tr.innerHTML =
-      '<td colspan="6" class="policies-empty">' +
-      escapeHtml(t("history.empty")) +
-      "</td>";
-    HistoryRows.appendChild(tr);
-  } else {
-    for (const mv of movements) {
-      const tr = document.createElement("tr");
-      tr.innerHTML =
-        "<td>" + escapeHtml(formatDateTime(mv.CreatedAt)) + "</td>" +
-        "<td>" + escapeHtml(movementTypeLabel(mv.Type)) + "</td>" +
-        "<td>" + escapeHtml(mv.BlancNumber || "—") + "</td>" +
-        "<td>" + escapeHtml(mv.Reason || "") + "</td>" +
-        '<td class="num ' + (Number(mv.Amount) >= 0 ? "pos" : "neg") + '">' +
-        formatSignedMoney(mv.Amount) + "</td>" +
-        '<td class="num ' + (Number(mv.BalanceAfter) < 0 ? "neg" : "") + '">' +
-        formatMoney(mv.BalanceAfter) + "</td>";
-      HistoryRows.appendChild(tr);
-    }
-  }
-
-  const broker = data.broker || {};
-  HistorySummary.textContent =
-    t("stat.balance") + ": " + formatMoney(broker.CashBalance) +
-    " · " + t("history.change") + ": " + formatSignedMoney(data.netChange) +
-    " · " + formatDateTime(data.since) + " – " + formatDateTime(data.until);
-  renderHistoryPager(data.totalPages, data.page);
-}
-
-async function loadHistory() {
-  const id = historyBrokerId();
-  if (!id) return;
-  HistoryRows.innerHTML = "";
-  HistorySummary.textContent = t("history.loading");
-  HistoryPager.innerHTML = "";
-
-  try {
-    const params = new URLSearchParams({ page: String(historyPage), pageSize: "40" });
-    if (historyDate) {
-      params.set("since", historyDate);
-      params.set("until", nextLocalDate(historyDate));
-    }
-    const data = await api("/brokers/" + id + "/history?" + params.toString());
-    renderHistory(data);
-  } catch (err) {
-    HistoryRows.innerHTML = "";
-    const tr = document.createElement("tr");
-    tr.innerHTML =
-      '<td colspan="6" class="policies-empty">' +
-      escapeHtml(err.message || t("history.loadFailed")) +
-      "</td>";
-    HistoryRows.appendChild(tr);
-    HistorySummary.textContent = "";
-    HistoryPager.innerHTML = "";
-  }
-}
-
-HistoryBtn.addEventListener("click", async () => {
-  if (!historyBrokerId()) return;
-  if (!HistoryPanel.classList.contains("hidden")) {
-    HistoryPanel.classList.add("hidden");
-    return;
-  }
-  historyPage = 1;
-  historyDate = HistoryDate.value || "";
-  PoliciesPanel.classList.add("hidden");
-  InactivePoliciesPanel.classList.add("hidden");
-  HistoryPanel.classList.remove("hidden");
-  await loadHistory();
-});
-
-HistoryDate.addEventListener("change", () => {
-  historyPage = 1;
-  historyDate = HistoryDate.value || "";
-  loadHistory();
-});
-
-HistoryClearBtn.addEventListener("click", () => {
-  HistoryDate.value = "";
-  historyPage = 1;
-  historyDate = "";
-  loadHistory();
-});
 
 async function load() {
   try {

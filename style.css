@@ -531,7 +531,7 @@ body {
 
 .policies-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 12px;
@@ -545,6 +545,38 @@ body {
 .policies-since {
   font-size: 13px;
   color: var(--muted);
+}
+
+.policies-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.policies-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.policies-controls input[type="date"] {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.policies-controls input[type="date"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.policies-total {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .history-filters {
