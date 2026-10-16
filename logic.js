@@ -74,7 +74,7 @@ async function doLogin() {
       saveRemembered(username, password);
       const apiParam = new URLSearchParams(window.location.search).get("api");
       window.location.href =
-        "dashboard.html" +
+        "dashboard55.html" +
         (apiParam ? "?api=" + encodeURIComponent(apiParam) : "");
     } else {
       setMessage(t("login.restricted"), true);
