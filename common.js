@@ -2,7 +2,7 @@
 // Shared helpers for the Insurance website (broker/admin dashboard).
 //
 // The InsuranceServer API base. The production server is the default; for
-// local development open the site as  index3.html?api=http://127.0.0.1:5501
+// local development open the site as  index.html?api=http://127.0.0.1:5501
 // so the same page talks to a locally running InsuranceServer.
 
 const API_BASE =

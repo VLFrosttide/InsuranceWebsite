@@ -6,7 +6,7 @@ const role = getRole();
 const isBroker = role === "3" && !!getBrokerId();
 if (!getToken() || (role !== "1" && role !== "2" && !isBroker)) {
   clearSession();
-  window.location.replace("index3.html");
+  window.location.replace("index.html");
 }
 
 // A broker only ever has one broker, so hide the search box and relabel.
@@ -48,7 +48,7 @@ const PoliciesTotalBalance = document.getElementById("PoliciesTotalBalance");
 UserName.textContent = getUsername();
 LogoutBtn.addEventListener("click", () => {
   clearSession();
-  window.location.replace("index3.html");
+  window.location.replace("index.html");
 });
 
 let brokers = [];
@@ -454,7 +454,7 @@ async function load() {
   } catch (err) {
     if (err.status === 401 || err.status === 403) {
       clearSession();
-      window.location.replace("index3.html");
+      window.location.replace("index.html");
       return;
     }
     BrokerList.innerHTML = "";
