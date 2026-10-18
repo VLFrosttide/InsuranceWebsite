@@ -1,0 +1,5 @@
+# Never cache — always serve the newest version of the site.
+<IfModule mod_headers.c>
+    Header set Cache-Control "no-store"
+    Header set Pragma "no-cache"
+</IfModule>
