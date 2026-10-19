@@ -288,22 +288,10 @@ function filteredPolicies() {
   return policiesData.filter((p) => policyDay(p) === policiesDate);
 }
 
-const DATE_LOCALES = { en: "en-GB", bg: "bg-BG", tr: "tr-TR" };
-
-// Format a YYYY-MM-DD filter value into the language-appropriate short date.
+// Format a YYYY-MM-DD filter value into the short numeric date (DD - MM - YY).
 function formatPoliciesDateValue(value) {
   if (!value) return "";
-  const d = toDate(value);
-  if (!d) return String(value);
-  try {
-    return new Intl.DateTimeFormat(DATE_LOCALES[getLang()] || "en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(d);
-  } catch {
-    return formatDate(d);
-  }
+  return formatDate(value);
 }
 
 // Keep the visible text field and its clear button in sync with `policiesDate`.
