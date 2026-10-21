@@ -45,6 +45,7 @@ const I18N = {
     "policies.date.clear": "Clear",
     "policies.totalBalance": "Total balance",
     "policies.emptyForDate": "No policies on this date.",
+    "policies.export": "Export Excel",
     "list.noMatches": "No matches",
     "list.noBrokers": "No brokers yet",
     "list.loadFailed": "Failed to load brokers",
@@ -153,6 +154,10 @@ const I18N = {
     "report.lesovoCard": "Card · Lesovo",
     "report.sum": "Grand total",
     "report.loadFailed": "Failed to load payment report",
+    "report.cashInflow.title": "Cash inflow report",
+    "report.cashInflow.empty": "No cash inflow from brokers in this period.",
+    "report.cashInflow.loadFailed": "Failed to load cash inflow report",
+    "report.cashInflow.unknownBroker": "Unknown broker",
   },
 
   bg: {
@@ -197,6 +202,7 @@ const I18N = {
     "policies.date.clear": "Изчисти",
     "policies.totalBalance": "Общ баланс",
     "policies.emptyForDate": "Няма полици на тази дата.",
+    "policies.export": "Експорт в Excel",
     "list.noMatches": "Няма съвпадения",
     "list.noBrokers": "Все още няма брокери",
     "list.loadFailed": "Неуспешно зареждане на брокерите",
@@ -305,6 +311,10 @@ const I18N = {
     "report.lesovoCard": "Карта · Лесово",
     "report.sum": "Обща сума",
     "report.loadFailed": "Неуспешно зареждане на отчета за плащания",
+    "report.cashInflow.title": "Отчет за входящи парични потоци",
+    "report.cashInflow.empty": "Няма входящи парични потоци от брокери за този период.",
+    "report.cashInflow.loadFailed": "Неуспешно зареждане на отчета за входящи парични потоци",
+    "report.cashInflow.unknownBroker": "Неизвестен брокер",
   },
 
   tr: {
@@ -349,6 +359,7 @@ const I18N = {
     "policies.date.clear": "Temizle",
     "policies.totalBalance": "Toplam bakiye",
     "policies.emptyForDate": "Bu tarihte poliçe yok.",
+    "policies.export": "Excel'e Aktar",
     "list.noMatches": "Eşleşme yok",
     "list.noBrokers": "Henüz acente yok",
     "list.loadFailed": "Acenteler yüklenemedi",
@@ -457,5 +468,9 @@ const I18N = {
     "report.lesovoCard": "Kart · Lesovo",
     "report.sum": "Genel toplam",
     "report.loadFailed": "Ödeme raporu yüklenemedi",
+    "report.cashInflow.title": "Nakit girişi raporu",
+    "report.cashInflow.empty": "Bu dönemde acentelerden nakit girişi yok.",
+    "report.cashInflow.loadFailed": "Nakit girişi raporu yüklenemedi",
+    "report.cashInflow.unknownBroker": "Bilinmeyen acente",
   },
 };

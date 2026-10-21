@@ -43,6 +43,7 @@ const InactivePoliciesCount = document.getElementById("InactivePoliciesCount");
 const PoliciesDate = document.getElementById("PoliciesDate");
 const PoliciesDatePicker = document.getElementById("PoliciesDatePicker");
 const PoliciesDateClear = document.getElementById("PoliciesDateClear");
+const PoliciesExportBtn = document.getElementById("PoliciesExportBtn");
 const PoliciesTotalBalance = document.getElementById("PoliciesTotalBalance");
 const Report = document.getElementById("Report");
 const ReportFrom = document.getElementById("ReportFrom");
@@ -54,6 +55,8 @@ const ReportLesovoCash = document.getElementById("ReportLesovoCash");
 const ReportLesovoCard = document.getElementById("ReportLesovoCard");
 const ReportTotal = document.getElementById("ReportTotal");
 const ReportMsg = document.getElementById("ReportMsg");
+const CashInflowGrid = document.getElementById("CashInflowGrid");
+const CashInflowMsg = document.getElementById("CashInflowMsg");
 
 // The report is a company-wide aggregate, so broker accounts never see it.
 // Hide immediately (before any async load) to avoid a flash of empty report.
@@ -290,8 +293,145 @@ async function loadReport() {
   ReportTotal.textContent = formatMoney(total);
 }
 
+// --- Cash inflow report (per-broker inflows) ---------------------------------
+
+// Pull a broker name from a set of candidate field names on an entry.
+function pickCashInflowName(item) {
+  if (!item) return "";
+  if (typeof item === "string") return item.trim();
+  for (const key of [
+    "brokerName",
+    "BrokerName",
+    "name",
+    "Name",
+    "broker",
+    "Broker",
+  ]) {
+    const v = item[key];
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      return String(v).trim();
+    }
+  }
+  return "";
+}
+
+// Accept a bare array, or a wrapper object such as
+// { brokers: [...] }, { items: [...] }, { entries: [...] },
+// { cashInflow: [...] }, { cashInflows: [...] } or { inflows: [...] }.
+function normalizeCashInflow(data) {
+  let list = [];
+  if (Array.isArray(data)) {
+    list = data;
+  } else if (data && typeof data === "object") {
+    list =
+      data.brokers ||
+      data.items ||
+      data.entries ||
+      data.cashInflow ||
+      data.cashInflows ||
+      data.inflows ||
+      data.data ||
+      [];
+  }
+  if (!Array.isArray(list)) list = [];
+
+  const rows = [];
+  for (const item of list) {
+    const name = pickCashInflowName(item);
+    const amount =
+      pickPaymentValue(item, [
+        "amount",
+        "Amount",
+        "cashInflow",
+        "CashInflow",
+        "inflow",
+        "Inflow",
+        "total",
+        "Total",
+        "value",
+        "Value",
+      ]) ?? 0;
+    // Only positive inflows of at least €200 qualify.
+    if (Number.isFinite(amount) && amount >= 200) {
+      rows.push({
+        name: name || t("report.cashInflow.unknownBroker"),
+        amount,
+      });
+    }
+  }
+  rows.sort((a, b) => b.amount - a.amount);
+  return rows;
+}
+
+async function loadCashInflow() {
+  if (!CashInflowGrid) return;
+
+  // Company-wide aggregate — only meaningful for admins/workers.
+  if (isBroker) {
+    CashInflowGrid.innerHTML = "";
+    CashInflowMsg.textContent = "";
+    CashInflowMsg.className = "msg report-msg";
+    return;
+  }
+
+  if (!ReportFrom.value || !ReportTo.value) {
+    const r = defaultReportRange();
+    if (!ReportFrom.value) ReportFrom.value = r.from;
+    if (!ReportTo.value) ReportTo.value = r.to;
+  }
+
+  const from = ReportFrom.value.trim();
+  const to = ReportTo.value.trim();
+  const qs = [];
+  if (from) qs.push("from=" + encodeURIComponent(from));
+  if (to) qs.push("to=" + encodeURIComponent(to));
+
+  CashInflowGrid.innerHTML = "";
+  CashInflowMsg.textContent = "";
+  CashInflowMsg.className = "msg report-msg";
+
+  let rows = [];
+  try {
+    const data = await api(
+      "/reports/cash-inflow" + (qs.length ? "?" + qs.join("&") : "")
+    );
+    rows = normalizeCashInflow(data);
+  } catch (err) {
+    CashInflowMsg.textContent = err.message || t("report.cashInflow.loadFailed");
+    CashInflowMsg.className = "msg report-msg error";
+    return;
+  }
+
+  if (rows.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "cashinflow-empty";
+    empty.textContent = t("report.cashInflow.empty");
+    CashInflowGrid.appendChild(empty);
+    return;
+  }
+
+  for (const row of rows) {
+    const card = document.createElement("div");
+    card.className = "cashinflow-card";
+
+    const name = document.createElement("span");
+    name.className = "cashinflow-name";
+    name.textContent = row.name;
+
+    const amount = document.createElement("span");
+    amount.className = "cashinflow-amount";
+    amount.textContent = formatMoney(row.amount);
+
+    card.appendChild(name);
+    card.appendChild(amount);
+    CashInflowGrid.appendChild(card);
+  }
+}
+
 ReportFrom.addEventListener("change", loadReport);
 ReportTo.addEventListener("change", loadReport);
+ReportFrom.addEventListener("change", loadCashInflow);
+ReportTo.addEventListener("change", loadCashInflow);
 
 // Local calendar day of a policy's creation date, as "YYYY-MM-DD".
 function policyDay(p) {
@@ -465,6 +605,71 @@ PoliciesDatePicker.addEventListener("change", () => {
 
 PoliciesDateClear.addEventListener("click", () => setPoliciesDateFilter(""));
 
+// Download the currently visible "Policies since last payment" rows as an
+// Excel file. Uses Excel's HTML table format so the export works without any
+// third-party library, and forces text cells so leading zeros are preserved.
+function exportPoliciesExcel() {
+  const policies = sortedPolicies();
+
+  const textCell = (v) =>
+    '<td style=\'mso-number-format:"@";\'>' + escapeHtml(v) + "</td>";
+
+  const headers = [t("policies.col.policy"), t("policies.col.blanc")];
+  if (!policiesHidePricing) {
+    headers.push(t("policies.col.price"), t("policies.col.currency"));
+  }
+  headers.push(t("policies.col.created"));
+
+  const headerHtml = headers
+    .map((h) => '<th style="font-weight:bold;">' + escapeHtml(h) + "</th>")
+    .join("");
+
+  const bodyHtml = policies
+    .map((p) => {
+      let cells = textCell(p.PolicyNumber) + textCell(p.BlancNumber);
+      if (!policiesHidePricing) {
+        cells +=
+          '<td style=\'mso-number-format:"0.00";\'>' +
+          Number(p.Price || 0) +
+          "</td>" +
+          textCell(p.CurrencyType);
+      }
+      cells += textCell(formatDate(p.CreationDate));
+      return "<tr>" + cells + "</tr>";
+    })
+    .join("");
+
+  const html =
+    '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+    'xmlns:x="urn:schemas-microsoft-com:office:excel" ' +
+    'xmlns="http://www.w3.org/TR/REC-html40">' +
+    '<head><meta charset="UTF-8">' +
+    "<!--[if gte mso 9]><xml>" +
+    "<x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>" +
+    "<x:Name>Policies</x:Name>" +
+    "<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>" +
+    "</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook>" +
+    "</xml><![endif]-->" +
+    "</head><body><table>" +
+    "<tr>" +
+    headerHtml +
+    "</tr>" +
+    bodyHtml +
+    "</table></body></html>";
+
+  const blob = new Blob([html], { type: "application/vnd.ms-excel" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "policies-since-last-payment.xls";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+PoliciesExportBtn.addEventListener("click", exportPoliciesExcel);
+
 async function selectBroker(id) {
   selectedId = id;
   renderBrokerList();
@@ -622,6 +827,7 @@ async function load() {
     schedule = data.schedule || null;
     renderBrokerList();
     loadReport();
+    loadCashInflow();
     if (brokers.length > 0) await selectBroker(brokers[0].id);
   } catch (err) {
     if (err.status === 401 || err.status === 403) {
