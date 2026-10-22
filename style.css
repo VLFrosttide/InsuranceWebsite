@@ -896,6 +896,22 @@ body {
   padding: 18px 0;
 }
 
+tr.annulled td {
+  color: var(--muted);
+}
+
+.annulled-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(244, 63, 94, 0.14);
+  color: #f43f5e;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
 /* ------------------------------------------------------------------ */
 /* Non-selectable UI chrome (text that doesn't need to be copied)      */
 /* ------------------------------------------------------------------ */
@@ -1191,6 +1207,16 @@ button,
 .underling-meta {
   font-size: 13px;
   color: var(--muted);
+  white-space: nowrap;
+}
+
+.underling-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.underling-export {
   white-space: nowrap;
 }
 
