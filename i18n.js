@@ -158,6 +158,7 @@ const I18N = {
     "report.cashInflow.empty": "No cash inflow from brokers in this period.",
     "report.cashInflow.loadFailed": "Failed to load cash inflow report",
     "report.cashInflow.unknownBroker": "Unknown broker",
+    "report.cashInflow.total": "Total inflow",
   },
 
   bg: {
@@ -315,6 +316,7 @@ const I18N = {
     "report.cashInflow.empty": "Няма входящи парични потоци от брокери за този период.",
     "report.cashInflow.loadFailed": "Неуспешно зареждане на отчета за входящи парични потоци",
     "report.cashInflow.unknownBroker": "Неизвестен брокер",
+    "report.cashInflow.total": "Общ входящ поток",
   },
 
   tr: {
@@ -472,5 +474,6 @@ const I18N = {
     "report.cashInflow.empty": "Bu dönemde acentelerden nakit girişi yok.",
     "report.cashInflow.loadFailed": "Nakit girişi raporu yüklenemedi",
     "report.cashInflow.unknownBroker": "Bilinmeyen acente",
+    "report.cashInflow.total": "Toplam giriş",
   },
 };

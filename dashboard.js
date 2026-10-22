@@ -363,6 +363,24 @@ function normalizeCashInflow(data) {
   return rows;
 }
 
+// Build a single cash-inflow card. `isTotal` marks the combined sum card.
+function buildCashInflowCard(name, amount, isTotal) {
+  const card = document.createElement("div");
+  card.className = "cashinflow-card" + (isTotal ? " cashinflow-total" : "");
+
+  const nameEl = document.createElement("span");
+  nameEl.className = "cashinflow-name";
+  nameEl.textContent = name;
+
+  const amountEl = document.createElement("span");
+  amountEl.className = "cashinflow-amount";
+  amountEl.textContent = formatMoney(amount);
+
+  card.appendChild(nameEl);
+  card.appendChild(amountEl);
+  return card;
+}
+
 async function loadCashInflow() {
   if (!CashInflowGrid) return;
 
@@ -410,21 +428,14 @@ async function loadCashInflow() {
     return;
   }
 
+  // One combined card summing every broker inflow into a single total.
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  CashInflowGrid.appendChild(
+    buildCashInflowCard(t("report.cashInflow.total"), total, true)
+  );
+
   for (const row of rows) {
-    const card = document.createElement("div");
-    card.className = "cashinflow-card";
-
-    const name = document.createElement("span");
-    name.className = "cashinflow-name";
-    name.textContent = row.name;
-
-    const amount = document.createElement("span");
-    amount.className = "cashinflow-amount";
-    amount.textContent = formatMoney(row.amount);
-
-    card.appendChild(name);
-    card.appendChild(amount);
-    CashInflowGrid.appendChild(card);
+    CashInflowGrid.appendChild(buildCashInflowCard(row.name, row.amount, false));
   }
 }
 

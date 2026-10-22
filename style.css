@@ -512,6 +512,12 @@ body {
   min-width: 0;
 }
 
+.cashinflow-card.cashinflow-total {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.45);
+  border-left-color: var(--accent);
+}
+
 .cashinflow-name {
   font-size: 13px;
   color: var(--muted);
