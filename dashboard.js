@@ -434,7 +434,7 @@ function weeklyHeat(value, min, max) {
 // Build a single cash-inflow card. `isTotal` marks the all-brokers sum card.
 // When `isTotal` is true the four stats become sort controls for the table;
 // `sortKey` highlights the active one and `onSort` is called on click.
-function buildCashInflowCard(row, isTotal, heat, sortKey, onSort) {
+function buildCashInflowCard(row, isTotal, heat, sortKey, sortDir, onSort) {
   const card = document.createElement("div");
   card.className = "cashinflow-card" + (isTotal ? " cashinflow-total" : "");
 
@@ -466,7 +466,8 @@ function buildCashInflowCard(row, isTotal, heat, sortKey, onSort) {
 
     const labelEl = document.createElement("span");
     labelEl.className = "cashinflow-stat-label";
-    labelEl.textContent = isTotal && key === sortKey ? label + " ↓" : label;
+    labelEl.textContent =
+      isTotal && key === sortKey ? label + (sortDir === 1 ? " ↑" : " ↓") : label;
 
     const valueEl = document.createElement("span");
     valueEl.className = "cashinflow-stat-value" + (cls ? " " + cls : "");
@@ -522,15 +523,19 @@ function buildCashInflowCard(row, isTotal, heat, sortKey, onSort) {
 
 // Current sort key for the cash-inflow table. Defaults to the weekly balance.
 let cashInflowSortKey = "weeklyBalance";
+// Sort direction: -1 = highest first (descending), 1 = lowest first (ascending).
+let cashInflowSortDir = -1;
 
 function renderCashInflow(rows) {
-  // Sort a copy by the selected value (highest first), falling back to the
-  // weekly balance then the amount owed for the period for stable ordering.
+  // Sort a copy by the selected value, falling back to the weekly balance then
+  // the amount owed for the period for stable ordering. `cashInflowSortDir`
+  // flips between highest first (-1) and lowest first (1).
   const sorted = rows.slice().sort((a, b) => {
     return (
-      Number(b[cashInflowSortKey]) - Number(a[cashInflowSortKey]) ||
-      Number(b.weeklyBalance) - Number(a.weeklyBalance) ||
-      Number(b.owedForPeriod) - Number(a.owedForPeriod)
+      (Number(b[cashInflowSortKey]) - Number(a[cashInflowSortKey]) ||
+        Number(b.weeklyBalance) - Number(a.weeklyBalance) ||
+        Number(b.owedForPeriod) - Number(a.owedForPeriod)) *
+      cashInflowSortDir
     );
   });
 
@@ -566,10 +571,22 @@ function renderCashInflow(rows) {
 
   CashInflowGrid.innerHTML = "";
   CashInflowGrid.appendChild(
-    buildCashInflowCard(totals, true, null, cashInflowSortKey, (key) => {
-      cashInflowSortKey = key;
-      renderCashInflow(rows);
-    })
+    buildCashInflowCard(
+      totals,
+      true,
+      null,
+      cashInflowSortKey,
+      cashInflowSortDir,
+      (key) => {
+        if (cashInflowSortKey === key) {
+          cashInflowSortDir *= -1;
+        } else {
+          cashInflowSortKey = key;
+          cashInflowSortDir = -1;
+        }
+        renderCashInflow(rows);
+      }
+    )
   );
 
   for (const row of sorted) {
