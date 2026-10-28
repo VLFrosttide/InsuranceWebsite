@@ -562,6 +562,28 @@ body {
   word-break: break-word;
 }
 
+.cashinflow-stat-sort {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cashinflow-stat-sort:hover {
+  background: rgba(56, 189, 248, 0.14);
+}
+
+.cashinflow-stat-sort.active {
+  background: rgba(56, 189, 248, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.45);
+}
+
+.cashinflow-stat-sort:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .cashinflow-inflow {
   color: var(--success);
 }

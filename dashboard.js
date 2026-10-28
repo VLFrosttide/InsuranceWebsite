@@ -352,9 +352,9 @@ function normalizeCashInflow(data) {
         "Value",
       ]) ?? 0;
 
-    // Total owed = the sum of every insurance made by this broker within the
-    // requested window. The server reports it under one of several names.
-    const totalOwed =
+    // Owed for the period = the sum of every insurance made by this broker
+    // within the requested window. The server reports it under several names.
+    const owedForPeriod =
       pickPaymentValue(item, [
         "totalOwed",
         "TotalOwed",
@@ -372,8 +372,9 @@ function normalizeCashInflow(data) {
         "Debt",
       ]) ?? 0;
 
-    // Leftover balance carried over from previous cycles (opening balance).
-    const leftover =
+    // Broker balance right before the period's payment — a signed balance where
+    // a negative value means the broker owes money.
+    const previousBalance =
       pickPaymentValue(item, [
         "leftover",
         "Leftover",
@@ -392,37 +393,38 @@ function normalizeCashInflow(data) {
       ]) ?? 0;
 
     // Weekly balance is this cycle only: inflow minus owed, excluding any
-    // leftover carried over from earlier cycles.
-    const weeklyBalance = cashInflow - totalOwed;
-    // Total amount the broker currently owes: what was carried over from
-    // previous cycles plus this cycle's net owed (owed minus inflow).
-    const totalDue = leftover + (totalOwed - cashInflow);
+    // balance carried over from earlier cycles.
+    const weeklyBalance = cashInflow - owedForPeriod;
 
-    // Keep rows that have meaningful data: any owed/leftover amount, or a
+    // Leftover balance = the broker balance right before payment, adjusted by
+    // this period's insurances (owed) and payments (inflow). A payment reduces
+    // what the broker owes, so a balance of -100 plus a 50 payment leaves -50.
+    const leftoverBalance = previousBalance + cashInflow - owedForPeriod;
+
+    // Keep rows that have meaningful data: any owed/balance amount, or a
     // cash inflow of at least €200 (the previous inclusion rule).
     const significant =
-      Math.abs(totalOwed) >= 1 || Math.abs(leftover) >= 1 || cashInflow >= 200;
+      Math.abs(owedForPeriod) >= 1 || Math.abs(previousBalance) >= 1 || cashInflow >= 200;
     if (!significant) continue;
 
     rows.push({
       name: name || t("report.cashInflow.unknownBroker"),
       cashInflow,
-      totalOwed,
+      owedForPeriod,
       weeklyBalance,
-      leftover,
-      totalDue,
+      previousBalance,
+      leftoverBalance,
     });
   }
 
-  // Most-indebted brokers first.
-  rows.sort((a, b) => b.totalDue - a.totalDue || b.totalOwed - a.totalOwed);
   return rows;
 }
 
-// Interpolate a heat colour from green (lowest owed) to red (highest owed).
-function owedHeat(value, min, max) {
+// Interpolate a heat colour for a weekly balance: red for the most negative
+// (brokers who owe the most this period) through to green for the most positive.
+function weeklyHeat(value, min, max) {
   const t = max === min ? 0.5 : (value - min) / (max - min);
-  const hue = Math.round(140 * (1 - t)); // 140 (green) -> 0 (red)
+  const hue = Math.round(140 * t); // min -> 0 (red), max -> 140 (green)
   return {
     color: "hsl(" + hue + ", 70%, 45%)",
     tint: "hsla(" + hue + ", 70%, 45%, 0.16)",
@@ -430,7 +432,9 @@ function owedHeat(value, min, max) {
 }
 
 // Build a single cash-inflow card. `isTotal` marks the all-brokers sum card.
-function buildCashInflowCard(row, isTotal, heat) {
+// When `isTotal` is true the four stats become sort controls for the table;
+// `sortKey` highlights the active one and `onSort` is called on click.
+function buildCashInflowCard(row, isTotal, heat, sortKey, onSort) {
   const card = document.createElement("div");
   card.className = "cashinflow-card" + (isTotal ? " cashinflow-total" : "");
 
@@ -441,13 +445,28 @@ function buildCashInflowCard(row, isTotal, heat) {
   const stats = document.createElement("div");
   stats.className = "cashinflow-stats";
 
-  const addStat = (label, value, cls, color) => {
+  const addStat = (key, label, value, cls, color) => {
     const item = document.createElement("div");
     item.className = "cashinflow-stat";
 
+    if (isTotal) {
+      item.classList.add("cashinflow-stat-sort");
+      item.setAttribute("role", "button");
+      item.setAttribute("tabindex", "0");
+      if (key === sortKey) item.classList.add("active");
+      const activate = () => onSort && onSort(key);
+      item.addEventListener("click", activate);
+      item.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          activate();
+        }
+      });
+    }
+
     const labelEl = document.createElement("span");
     labelEl.className = "cashinflow-stat-label";
-    labelEl.textContent = label;
+    labelEl.textContent = isTotal && key === sortKey ? label + " ↓" : label;
 
     const valueEl = document.createElement("span");
     valueEl.className = "cashinflow-stat-value" + (cls ? " " + cls : "");
@@ -460,24 +479,38 @@ function buildCashInflowCard(row, isTotal, heat) {
   };
 
   addStat(
+    "owedForPeriod",
     t("report.cashInflow.totalOwed"),
-    row.totalOwed,
+    row.owedForPeriod,
     "",
-    isTotal ? "var(--accent)" : heat.color
+    isTotal ? "var(--accent)" : ""
   );
-  addStat(t("report.cashInflow.cashInflow"), row.cashInflow, "cashinflow-inflow", "");
   addStat(
+    "cashInflow",
+    t("report.cashInflow.cashInflow"),
+    row.cashInflow,
+    "cashinflow-inflow",
+    ""
+  );
+  addStat(
+    "weeklyBalance",
     t("report.cashInflow.weeklyBalance"),
     row.weeklyBalance,
     row.weeklyBalance > 0 ? "cashinflow-weekly-pos" : "cashinflow-weekly-neg",
     ""
   );
-  addStat(t("report.cashInflow.leftover"), row.leftover, "cashinflow-leftover", "");
+  addStat(
+    "leftoverBalance",
+    t("report.cashInflow.leftover"),
+    row.leftoverBalance,
+    "cashinflow-leftover",
+    ""
+  );
 
   card.appendChild(nameEl);
   card.appendChild(stats);
 
-  // Colour-code the card itself by how much this broker owes.
+  // Colour-code the card itself by this broker's weekly balance.
   if (!isTotal && heat) {
     card.style.borderLeftColor = heat.color;
     card.style.background =
@@ -485,6 +518,69 @@ function buildCashInflowCard(row, isTotal, heat) {
   }
 
   return card;
+}
+
+// Current sort key for the cash-inflow table. Defaults to the weekly balance.
+let cashInflowSortKey = "weeklyBalance";
+
+function renderCashInflow(rows) {
+  // Sort a copy by the selected value (highest first), falling back to the
+  // weekly balance then the amount owed for the period for stable ordering.
+  const sorted = rows.slice().sort((a, b) => {
+    return (
+      Number(b[cashInflowSortKey]) - Number(a[cashInflowSortKey]) ||
+      Number(b.weeklyBalance) - Number(a.weeklyBalance) ||
+      Number(b.owedForPeriod) - Number(a.owedForPeriod)
+    );
+  });
+
+  // Heat range across brokers so the gradient always spans the full weekly
+  // balance spread: red for the most negative, green for the most positive.
+  let minWeekly = Infinity;
+  let maxWeekly = -Infinity;
+  for (const row of rows) {
+    if (row.weeklyBalance < minWeekly) minWeekly = row.weeklyBalance;
+    if (row.weeklyBalance > maxWeekly) maxWeekly = row.weeklyBalance;
+  }
+  if (!Number.isFinite(minWeekly)) minWeekly = 0;
+  if (!Number.isFinite(maxWeekly)) maxWeekly = 0;
+
+  // One combined card summing every broker into an all-brokers total. Its four
+  // stats are the clickable sort controls.
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.owedForPeriod += row.owedForPeriod;
+      acc.cashInflow += row.cashInflow;
+      acc.weeklyBalance += row.weeklyBalance;
+      acc.leftoverBalance += row.leftoverBalance;
+      return acc;
+    },
+    {
+      name: t("report.cashInflow.allBrokers"),
+      owedForPeriod: 0,
+      cashInflow: 0,
+      weeklyBalance: 0,
+      leftoverBalance: 0,
+    }
+  );
+
+  CashInflowGrid.innerHTML = "";
+  CashInflowGrid.appendChild(
+    buildCashInflowCard(totals, true, null, cashInflowSortKey, (key) => {
+      cashInflowSortKey = key;
+      renderCashInflow(rows);
+    })
+  );
+
+  for (const row of sorted) {
+    CashInflowGrid.appendChild(
+      buildCashInflowCard(
+        row,
+        false,
+        weeklyHeat(row.weeklyBalance, minWeekly, maxWeekly)
+      )
+    );
+  }
 }
 
 async function loadCashInflow() {
@@ -534,40 +630,7 @@ async function loadCashInflow() {
     return;
   }
 
-  // Heat range across brokers so the gradient always spans least -> most owed.
-  let minOwed = Infinity;
-  let maxOwed = -Infinity;
-  for (const row of rows) {
-    if (row.totalDue < minOwed) minOwed = row.totalDue;
-    if (row.totalDue > maxOwed) maxOwed = row.totalDue;
-  }
-  if (!Number.isFinite(minOwed)) minOwed = 0;
-  if (!Number.isFinite(maxOwed)) maxOwed = 0;
-
-  // One combined card summing every broker into an all-brokers total.
-  const totals = rows.reduce(
-    (acc, row) => {
-      acc.totalOwed += row.totalOwed;
-      acc.cashInflow += row.cashInflow;
-      acc.weeklyBalance += row.weeklyBalance;
-      acc.leftover += row.leftover;
-      return acc;
-    },
-    {
-      name: t("report.cashInflow.allBrokers"),
-      totalOwed: 0,
-      cashInflow: 0,
-      weeklyBalance: 0,
-      leftover: 0,
-    }
-  );
-  CashInflowGrid.appendChild(buildCashInflowCard(totals, true, null));
-
-  for (const row of rows) {
-    CashInflowGrid.appendChild(
-      buildCashInflowCard(row, false, owedHeat(row.totalDue, minOwed, maxOwed))
-    );
-  }
+  renderCashInflow(rows);
 }
 
 ReportFrom.addEventListener("change", loadReport);
