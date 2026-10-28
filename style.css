@@ -567,11 +567,11 @@ body {
 }
 
 .cashinflow-weekly-pos {
-  color: var(--danger);
+  color: var(--success);
 }
 
 .cashinflow-weekly-neg {
-  color: var(--success);
+  color: var(--danger);
 }
 
 .cashinflow-leftover {

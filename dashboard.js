@@ -391,12 +391,12 @@ function normalizeCashInflow(data) {
         "CarryOver",
       ]) ?? 0;
 
-    // Weekly balance is this cycle only: owed minus inflow, excluding any
+    // Weekly balance is this cycle only: inflow minus owed, excluding any
     // leftover carried over from earlier cycles.
-    const weeklyBalance = totalOwed - cashInflow;
+    const weeklyBalance = cashInflow - totalOwed;
     // Total amount the broker currently owes: what was carried over from
-    // previous cycles plus this cycle's net (owed minus paid).
-    const totalDue = leftover + weeklyBalance;
+    // previous cycles plus this cycle's net owed (owed minus inflow).
+    const totalDue = leftover + (totalOwed - cashInflow);
 
     // Keep rows that have meaningful data: any owed/leftover amount, or a
     // cash inflow of at least €200 (the previous inclusion rule).
@@ -1096,6 +1096,7 @@ async function load() {
 onLangChange(() => {
   applyBrokerMode();
   renderBrokerList();
+  loadCashInflow();
   if (selectedId !== null) {
     const b = brokers.find((x) => x.id === selectedId);
     if (b) selectBroker(b.id);
