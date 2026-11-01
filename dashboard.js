@@ -1461,6 +1461,148 @@ RegistrationsCloseBtn.addEventListener("click", () =>
   closeOverlay(RegistrationsOverlay)
 );
 
+// --- Admin branches ----------------------------------------------------------
+
+const BranchesOverlay = document.getElementById("BranchesOverlay");
+const BranchesBtn = document.getElementById("BranchesBtn");
+const BranchesCloseBtn = document.getElementById("BranchesCloseBtn");
+const BranchList = document.getElementById("BranchList");
+const NewBranchInput = document.getElementById("NewBranchInput");
+const CreateBranchBtn = document.getElementById("CreateBranchBtn");
+const BranchMsg = document.getElementById("BranchMsg");
+
+if (role === "1" && BranchesBtn) {
+  BranchesBtn.classList.remove("hidden");
+}
+
+async function openBranches() {
+  setMsg(BranchMsg, "", false);
+  openOverlay(BranchesOverlay);
+  await loadBranches();
+}
+
+async function loadBranches() {
+  BranchList.innerHTML = "";
+  setMsg(BranchMsg, "", false);
+  try {
+    const data = await api("/admin/branches");
+    renderBranches(data.branches || []);
+  } catch (err) {
+    const li = document.createElement("li");
+    li.className = "muted";
+    li.textContent = err.message || t("admin.branches.loadFailed");
+    BranchList.appendChild(li);
+  }
+}
+
+function renderBranches(branches) {
+  if (branches.length === 0) {
+    const li = document.createElement("li");
+    li.className = "muted";
+    li.textContent = t("admin.branches.empty");
+    BranchList.appendChild(li);
+    return;
+  }
+
+  for (const b of branches) {
+    const li = document.createElement("li");
+    li.className = "branch-item";
+
+    const name = document.createElement("span");
+    name.className = "branch-name";
+    name.textContent = b.Name;
+
+    const label = document.createElement("label");
+    label.className = "switch";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = Boolean(b.Enabled);
+
+    const track = document.createElement("span");
+    track.className = "switch-track";
+    const knob = document.createElement("span");
+    knob.className = "switch-knob";
+    track.appendChild(knob);
+
+    const statusText = document.createElement("span");
+    statusText.className = "switch-label";
+    statusText.textContent = checkbox.checked
+      ? t("admin.branches.on")
+      : t("admin.branches.off");
+
+    checkbox.addEventListener("change", async () => {
+      const enabled = checkbox.checked;
+      statusText.textContent = enabled
+        ? t("admin.branches.on")
+        : t("admin.branches.off");
+      try {
+        await api("/admin/branches/" + encodeURIComponent(b.id), {
+          method: "PATCH",
+          body: JSON.stringify({ enabled }),
+        });
+        setMsg(
+          BranchMsg,
+          enabled
+            ? t("admin.branches.enabled", { name: b.Name })
+            : t("admin.branches.disabled", { name: b.Name }),
+          false
+        );
+      } catch (err) {
+        checkbox.checked = !enabled;
+        statusText.textContent = checkbox.checked
+          ? t("admin.branches.on")
+          : t("admin.branches.off");
+        setMsg(BranchMsg, err.message || t("admin.branches.toggleFailed"), true);
+      }
+    });
+
+    label.appendChild(checkbox);
+    label.appendChild(track);
+    label.appendChild(statusText);
+
+    li.appendChild(name);
+    li.appendChild(label);
+    BranchList.appendChild(li);
+  }
+}
+
+async function createBranch() {
+  const name = NewBranchInput.value.trim();
+  if (!name) {
+    setMsg(BranchMsg, t("admin.branches.nameRequired"), true);
+    return;
+  }
+  try {
+    await api("/admin/branches", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+    NewBranchInput.value = "";
+    setMsg(BranchMsg, t("admin.branches.created", { name }), false);
+    await loadBranches();
+  } catch (err) {
+    setMsg(BranchMsg, err.message || t("admin.branches.createFailed"), true);
+  }
+}
+
+BranchesBtn.addEventListener("click", openBranches);
+BranchesCloseBtn.addEventListener("click", () => closeOverlay(BranchesOverlay));
+CreateBranchBtn.addEventListener("click", createBranch);
+NewBranchInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    createBranch();
+  }
+});
+
+// Keep the dynamic branch list labels in sync when the language changes.
+onLangChange(() => {
+  if (BranchesOverlay && !BranchesOverlay.classList.contains("hidden")) {
+    loadBranches();
+  }
+});
+
 // --- Main broker: sub-brokers (underlings) + per-broker pricing -------------
 
 const SubBrokersPanel = document.getElementById("SubBrokersPanel");
