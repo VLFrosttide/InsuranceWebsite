@@ -824,10 +824,16 @@ body {
   padding-top: 18px;
 }
 
+/* Dim the table while a newly picked date range is being fetched. */
+.policies-panel.is-loading .table-wrap {
+  opacity: 0.55;
+}
+
 .policies-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 12px;
 }
@@ -851,6 +857,7 @@ body {
 .policies-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -891,17 +898,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .date-clear:hover {
   color: var(--text);
   border-color: var(--accent);
-}
-
-.date-picker-native {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  border: 0;
-  opacity: 0;
-  clip-path: inset(50%);
-  pointer-events: none;
 }
 
 .policies-total {
@@ -946,6 +942,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .history-pager span {
   font-size: 13px;
   color: var(--muted);
+}
+
+.history-pager button:disabled {
+  opacity: 0.45;
+  cursor: default;
+  border-color: var(--border);
+  color: var(--text);
 }
 
 .report-table th.sortable {

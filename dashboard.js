@@ -40,11 +40,15 @@ const InactivePoliciesBtn = document.getElementById("InactivePoliciesBtn");
 const InactivePoliciesPanel = document.getElementById("InactivePoliciesPanel");
 const InactivePoliciesRows = document.getElementById("InactivePoliciesRows");
 const InactivePoliciesCount = document.getElementById("InactivePoliciesCount");
-const PoliciesDate = document.getElementById("PoliciesDate");
-const PoliciesDatePicker = document.getElementById("PoliciesDatePicker");
+const PoliciesFrom = document.getElementById("PoliciesFrom");
+const PoliciesTo = document.getElementById("PoliciesTo");
 const PoliciesDateClear = document.getElementById("PoliciesDateClear");
 const PoliciesExportBtn = document.getElementById("PoliciesExportBtn");
 const PoliciesTotalBalance = document.getElementById("PoliciesTotalBalance");
+const PoliciesPager = document.getElementById("PoliciesPager");
+const PoliciesPrevBtn = document.getElementById("PoliciesPrevBtn");
+const PoliciesNextBtn = document.getElementById("PoliciesNextBtn");
+const PoliciesPageLabel = document.getElementById("PoliciesPageLabel");
 const Report = document.getElementById("Report");
 const ReportFrom = document.getElementById("ReportFrom");
 const ReportTo = document.getElementById("ReportTo");
@@ -179,7 +183,17 @@ function renderBanner(b) {
 
 let policiesData = [];
 let policySort = { key: "created", dir: -1 };
-let policiesDate = "";
+// Date range of the policies panel, as "YYYY-MM-DD" strings.
+// `policiesDefaultFrom` is the last payment date (start of the current payment
+// period). An empty `to` means "up to today".
+let policiesDefaultFrom = "";
+let policiesRange = { from: "", to: "" };
+// Bumped on every policies request so a slow, outdated response is ignored.
+let policiesRequestId = 0;
+// The policies table is paged in the browser: the whole date range is loaded
+// (so the total and the Excel export cover all of it) and shown a page at a time.
+const POLICIES_PAGE_SIZE = 24;
+let policiesPage = 1;
 
 // Local calendar day as "YYYY-MM-DD" (built from local components, so the day
 // never shifts around midnight).
@@ -655,35 +669,77 @@ ReportTo.addEventListener("change", loadReport);
 ReportFrom.addEventListener("change", loadCashInflow);
 ReportTo.addEventListener("change", loadCashInflow);
 
-// Local calendar day of a policy's creation date, as "YYYY-MM-DD".
-function policyDay(p) {
-  const d = toDate(p.CreationDate);
+// --- Policies panel date range ------------------------------------------------
+//
+// The panel defaults to "since the last payment" (the start of the current
+// payment period), but the From/To pickers can move the window anywhere, as
+// far back as records exist. The server applies the range (?from / ?to).
+
+// Normalise a date-ish value to the "YYYY-MM-DD" form a date input expects.
+function dateInputValue(v) {
+  const d = toDate(v);
   return d ? localDateString(d) : "";
 }
 
-function filteredPolicies() {
-  if (!policiesDate) return policiesData.slice();
-  return policiesData.filter((p) => policyDay(p) === policiesDate);
+function isDefaultPoliciesRange() {
+  return policiesRange.from === policiesDefaultFrom && !policiesRange.to;
 }
 
-// Format a YYYY-MM-DD filter value into the short numeric date (DD - MM - YY).
-function formatPoliciesDateValue(value) {
-  if (!value) return "";
-  return formatDate(value);
+// The clear button is only useful when the range differs from the default.
+function updatePoliciesClearButton() {
+  PoliciesDateClear.classList.toggle("hidden", isDefaultPoliciesRange());
 }
 
-// Keep the visible text field and its clear button in sync with `policiesDate`.
-function syncPoliciesDateField() {
-  PoliciesDate.value = formatPoliciesDateValue(policiesDate);
-  PoliciesDateClear.classList.toggle("hidden", !policiesDate);
+// Write the active range back into the two date inputs.
+function syncPoliciesRangeFields() {
+  PoliciesFrom.value = policiesRange.from;
+  PoliciesTo.value = policiesRange.to;
+  updatePoliciesClearButton();
 }
 
-// Apply a new filter date (YYYY-MM-DD) and re-render the policies table.
-function setPoliciesDateFilter(value) {
-  policiesDate = value || "";
-  PoliciesDatePicker.value = policiesDate;
-  syncPoliciesDateField();
-  renderPolicyTable();
+// Back to the default range: from the last payment date up to today.
+function resetPoliciesRange() {
+  if (!policiesDefaultFrom) {
+    policiesDefaultFrom = dateInputValue(schedule && schedule.periodStart);
+  }
+  policiesRange = { from: policiesDefaultFrom, to: "" };
+  policiesPage = 1;
+  syncPoliciesRangeFields();
+}
+
+// Apply the range typed/picked in the inputs and reload the policies. An empty
+// From falls back to the last payment date. The inputs themselves are not
+// rewritten here (that would interrupt typing); they are synced on blur.
+function applyPoliciesRangeFromInputs() {
+  policiesRange = {
+    from: PoliciesFrom.value || policiesDefaultFrom,
+    to: PoliciesTo.value || "",
+  };
+  policiesPage = 1;
+  updatePoliciesClearButton();
+  loadPolicies();
+}
+
+// Query string for the policies request. The default range sends no
+// parameters, so the server keeps using its own last payment date.
+function policiesRangeParams() {
+  if (isDefaultPoliciesRange()) return "";
+  const qs = [];
+  if (policiesRange.from) qs.push("from=" + encodeURIComponent(policiesRange.from));
+  if (policiesRange.to) qs.push("to=" + encodeURIComponent(policiesRange.to));
+  return qs.length ? "?" + qs.join("&") : "";
+}
+
+// Subtitle under the panel title: "Since {date}" or "{from} – {to}".
+function renderPoliciesSince() {
+  const { from, to } = policiesRange;
+  if (!from) {
+    PoliciesSince.textContent = "";
+  } else if (to) {
+    PoliciesSince.textContent = formatDate(from) + " – " + formatDate(to);
+  } else {
+    PoliciesSince.textContent = t("policies.since", { date: formatDate(from) });
+  }
 }
 
 function renderPoliciesTotal() {
@@ -693,7 +749,7 @@ function renderPoliciesTotal() {
     return;
   }
   PoliciesTotalBalance.classList.remove("hidden");
-  const total = filteredPolicies().reduce((sum, p) => sum + Number(p.Price || 0), 0);
+  const total = policiesData.reduce((sum, p) => sum + Number(p.Price || 0), 0);
   PoliciesTotalBalance.textContent =
     t("policies.totalBalance") + ": " + formatMoney(total);
 }
@@ -724,7 +780,7 @@ function comparePolicies(a, b) {
 }
 
 function sortedPolicies() {
-  const arr = filteredPolicies();
+  const arr = policiesData.slice();
   arr.sort((a, b) => comparePolicies(a, b) * policySort.dir);
   return arr;
 }
@@ -807,10 +863,34 @@ function renderPolicies(data) {
       isPricingHidden(currentBroker)
   );
   policiesData = data.policies || [];
-  PoliciesSince.textContent = data.schedule
-    ? t("policies.since", { date: formatDate(data.schedule.periodStart) })
-    : "";
+  // The server is the source of truth for the last payment date. If it differs
+  // from what we had (or we had none yet), adopt it; a panel still showing the
+  // default range follows the new date.
+  const serverDefault = dateInputValue(data.schedule && data.schedule.periodStart);
+  if (serverDefault && serverDefault !== policiesDefaultFrom) {
+    const wasDefault = isDefaultPoliciesRange();
+    policiesDefaultFrom = serverDefault;
+    if (wasDefault) {
+      policiesRange = { from: serverDefault, to: "" };
+      syncPoliciesRangeFields();
+    } else {
+      updatePoliciesClearButton();
+    }
+  }
+  renderPoliciesSince();
   renderPolicyTable();
+}
+
+// Previous / "Page x of y" / Next under the table. Hidden when everything
+// fits on one page.
+function renderPoliciesPager(totalPages) {
+  PoliciesPager.classList.toggle("hidden", totalPages <= 1);
+  PoliciesPageLabel.textContent = t("history.pageOf", {
+    page: policiesPage,
+    total: totalPages,
+  });
+  PoliciesPrevBtn.disabled = policiesPage <= 1;
+  PoliciesNextBtn.disabled = policiesPage >= totalPages;
 }
 
 function renderPolicyTable() {
@@ -825,7 +905,11 @@ function renderPolicyTable() {
 
   PoliciesRows.innerHTML = "";
   const policies = sortedPolicies();
-  for (const p of policies) {
+  // Keep the page within bounds (the list may have shrunk since it was set).
+  const totalPages = Math.max(1, Math.ceil(policies.length / POLICIES_PAGE_SIZE));
+  policiesPage = Math.min(Math.max(1, policiesPage), totalPages);
+  const pageStart = (policiesPage - 1) * POLICIES_PAGE_SIZE;
+  for (const p of policies.slice(pageStart, pageStart + POLICIES_PAGE_SIZE)) {
     const annulled = isPolicyAnnulled(p);
     const row = document.createElement("tr");
     if (annulled) row.classList.add("annulled");
@@ -851,7 +935,9 @@ function renderPolicyTable() {
     PoliciesRows.appendChild(row);
   }
   if (policies.length === 0) {
-    const emptyMessage = policiesDate ? t("policies.emptyForDate") : t("policies.empty");
+    const emptyMessage = isDefaultPoliciesRange()
+      ? t("policies.empty")
+      : t("policies.emptyForRange");
     const colSpan = policiesHidePricing ? 3 : 5;
     const row = document.createElement("tr");
     row.innerHTML =
@@ -864,6 +950,7 @@ function renderPolicyTable() {
   }
   updatePolicySortHeaders();
   renderPoliciesTotal();
+  renderPoliciesPager(totalPages);
 }
 
 document.querySelectorAll("#PoliciesPanel th[data-sort]").forEach((th) => {
@@ -875,24 +962,31 @@ document.querySelectorAll("#PoliciesPanel th[data-sort]").forEach((th) => {
       policySort.key = key;
       policySort.dir = key === "created" ? -1 : 1;
     }
+    policiesPage = 1;
     renderPolicyTable();
   });
 });
 
-PoliciesDate.addEventListener("click", () => {
-  if (!selectedId) return;
-  try {
-    PoliciesDatePicker.showPicker();
-  } catch {
-    PoliciesDatePicker.focus();
-  }
+PoliciesPrevBtn.addEventListener("click", () => {
+  policiesPage -= 1;
+  renderPolicyTable();
+});
+PoliciesNextBtn.addEventListener("click", () => {
+  policiesPage += 1;
+  renderPolicyTable();
 });
 
-PoliciesDatePicker.addEventListener("change", () => {
-  setPoliciesDateFilter(PoliciesDatePicker.value || "");
-});
+PoliciesFrom.addEventListener("change", applyPoliciesRangeFromInputs);
+PoliciesTo.addEventListener("change", applyPoliciesRangeFromInputs);
+// Once editing is finished, show the range actually in effect (e.g. refill an
+// emptied From with the last payment date).
+PoliciesFrom.addEventListener("blur", syncPoliciesRangeFields);
+PoliciesTo.addEventListener("blur", syncPoliciesRangeFields);
 
-PoliciesDateClear.addEventListener("click", () => setPoliciesDateFilter(""));
+PoliciesDateClear.addEventListener("click", () => {
+  resetPoliciesRange();
+  loadPolicies();
+});
 
 // Build an Excel (HTML table) document for a list of policies. Returns the
 // full HTML string. `hidePricing` mirrors the on-screen pricing visibility.
@@ -987,19 +1081,37 @@ function downloadExcel(html, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// File name for the export: the default range keeps the historical name, a
+// custom range is named after its dates.
+function policiesExportName() {
+  if (isDefaultPoliciesRange() || !policiesRange.from) {
+    return "policies-since-last-payment.xls";
+  }
+  return (
+    "policies-" +
+    policiesRange.from +
+    "-to-" +
+    (policiesRange.to || localDateString()) +
+    ".xls"
+  );
+}
+
 // Download the currently visible "Policies since last payment" rows as an
 // Excel file. Uses Excel's HTML table format so the export works without any
 // third-party library, and forces text cells so leading zeros are preserved.
 function exportPoliciesExcel() {
   downloadExcel(
     buildPoliciesExcel(sortedPolicies(), policiesHidePricing),
-    "policies-since-last-payment.xls"
+    policiesExportName()
   );
 }
 
 PoliciesExportBtn.addEventListener("click", exportPoliciesExcel);
 
 async function selectBroker(id) {
+  // Re-selecting the same broker (e.g. after a language change) keeps the
+  // chosen policies date range; switching broker resets it to the default.
+  const sameBroker = selectedId === id;
   selectedId = id;
   renderBrokerList();
 
@@ -1053,9 +1165,7 @@ async function selectBroker(id) {
 
   renderBanner(b);
   InactivePoliciesPanel.classList.add("hidden");
-  policiesDate = "";
-  PoliciesDatePicker.value = "";
-  syncPoliciesDateField();
+  if (!sameBroker) resetPoliciesRange();
   policySort = { key: "created", dir: -1 };
 
   EmptyState.classList.add("hidden");
@@ -1068,12 +1178,26 @@ BrokerSearch.addEventListener("input", renderBrokerList);
 
 async function loadPolicies() {
   if (!selectedId) return;
+  // Only the latest request may update the panel: changing the dates (or the
+  // broker) quickly must not let an older, slower response overwrite it.
+  const requestId = ++policiesRequestId;
+  PoliciesPanel.classList.add("is-loading");
   try {
-    const data = await api("/brokers/" + selectedId + "/policies");
+    const data = await api(
+      "/brokers/" + selectedId + "/policies" + policiesRangeParams()
+    );
+    if (requestId !== policiesRequestId) return;
+    PoliciesPanel.classList.remove("is-loading");
     renderPolicies(data);
     PoliciesPanel.classList.remove("hidden");
     InactivePoliciesPanel.classList.add("hidden");
   } catch (err) {
+    if (requestId !== policiesRequestId) return;
+    PoliciesPanel.classList.remove("is-loading");
+    policiesData = [];
+    policiesPage = 1;
+    renderPoliciesPager(1);
+    renderPoliciesSince();
     PoliciesRows.innerHTML = "";
     const row = document.createElement("tr");
     row.innerHTML =
@@ -1823,10 +1947,8 @@ function openDatePicker(input) {
   }
 }
 
-// Wire every visible native date input (report + sub-broker filters); the
-// hidden PoliciesDatePicker keeps its own showPicker() wiring.
+// Wire every native date input (report, policies range + sub-broker filters).
 document.querySelectorAll('input[type="date"]').forEach((input) => {
-  if (input.classList.contains("date-picker-native")) return;
   input.addEventListener("click", () => openDatePicker(input));
 });
 

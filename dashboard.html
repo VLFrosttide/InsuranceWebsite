@@ -131,12 +131,12 @@
                             <span id="PoliciesSince" class="policies-since"></span>
                         </div>
                         <div class="policies-controls">
-                            <label class="history-filter-label" for="PoliciesDate" data-i18n="policies.date">Date</label>
-                            <input id="PoliciesDate" type="text" class="date-input" readonly autocomplete="off"
-                                   data-i18n-placeholder="policies.date.placeholder" placeholder="dd - mm - yy" />
+                            <label class="history-filter-label" for="PoliciesFrom" data-i18n="policies.from">From</label>
+                            <input id="PoliciesFrom" type="date" class="date-input" />
+                            <label class="history-filter-label" for="PoliciesTo" data-i18n="policies.to">To</label>
+                            <input id="PoliciesTo" type="date" class="date-input" />
                             <button id="PoliciesDateClear" type="button" class="date-clear hidden"
                                     data-i18n="policies.date.clear">Clear</button>
-                            <input id="PoliciesDatePicker" type="date" class="date-picker-native" tabindex="-1" aria-hidden="true" />
                             <span id="PoliciesTotalBalance" class="policies-total"></span>
                             <button id="PoliciesExportBtn" type="button" class="btn-ghost btn-small"
                                     data-i18n="policies.export">Export Excel</button>
@@ -155,6 +155,13 @@
                             </thead>
                             <tbody id="PoliciesRows"></tbody>
                         </table>
+                    </div>
+                    <div id="PoliciesPager" class="history-pager hidden">
+                        <button id="PoliciesPrevBtn" type="button" class="btn-ghost btn-small"
+                                data-i18n="history.previous">Previous</button>
+                        <span id="PoliciesPageLabel"></span>
+                        <button id="PoliciesNextBtn" type="button" class="btn-ghost btn-small"
+                                data-i18n="history.next">Next</button>
                     </div>
                 </div>
 
