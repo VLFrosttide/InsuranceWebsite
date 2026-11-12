@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="title.dashboard">Broker Bi-Weekly Report</title>
-    <link rel="stylesheet" href="style.css?v=1"/>
+    <link rel="stylesheet" href="style.css?v=3"/>
 </head>
 <body class="app-body">
     <header class="topbar">
@@ -54,15 +54,44 @@
                 <span class="report-label" data-i18n="report.lesovoCard">Card · Lesovo</span>
                 <span id="ReportLesovoCard" class="report-value">—</span>
             </div>
+            <div class="report-item report-expenses">
+                <span class="report-label" data-i18n="report.expenses">Expenses</span>
+                <span id="ReportExpenses" class="report-value">—</span>
+            </div>
             <div class="report-item report-total">
                 <span class="report-label" data-i18n="report.sum">Grand total</span>
                 <span id="ReportTotal" class="report-value">—</span>
+            </div>
+            <div class="report-item report-net-total">
+                <span class="report-label" data-i18n="report.netTotal">Total after expenses</span>
+                <span id="ReportNetTotal" class="report-value">—</span>
             </div>
         </div>
         <p id="ReportMsg" class="msg report-msg" role="alert" aria-live="polite"></p>
 
         <div class="report-cashinflow">
             <h3 class="report-subtitle" data-i18n="report.cashInflow.title">Cash inflow report</h3>
+            <details class="cashinflow-help">
+                <summary data-i18n="report.cashInflow.help.toggle">What do these numbers mean?</summary>
+                <dl class="cashinflow-help-list">
+                    <div class="cashinflow-help-item">
+                        <dt data-i18n="report.cashInflow.totalOwed">Owed for period</dt>
+                        <dd data-i18n="report.cashInflow.totalOwed.hint">Sum of every insurance the broker wrote in the selected dates, before this period's payment is taken off.</dd>
+                    </div>
+                    <div class="cashinflow-help-item">
+                        <dt data-i18n="report.cashInflow.cashInflow">Cash inflow</dt>
+                        <dd data-i18n="report.cashInflow.cashInflow.hint">Money the broker actually paid in during the selected dates, cash and card together.</dd>
+                    </div>
+                    <div class="cashinflow-help-item">
+                        <dt data-i18n="report.cashInflow.weeklyBalance">Weekly total balance</dt>
+                        <dd data-i18n="report.cashInflow.weeklyBalance.hint">This period only: cash inflow minus what was owed. Green means settled, red means the broker still owes for the period.</dd>
+                    </div>
+                    <div class="cashinflow-help-item">
+                        <dt data-i18n="report.cashInflow.leftover">Leftover balance</dt>
+                        <dd data-i18n="report.cashInflow.leftover.hint">What carries into the next period: the balance before this period + cash inflow − owed.</dd>
+                    </div>
+                </dl>
+            </details>
             <p id="CashInflowMsg" class="msg report-msg" role="alert" aria-live="polite"></p>
             <div id="CashInflowGrid" class="cashinflow-grid"></div>
         </div>
@@ -305,8 +334,8 @@
         </div>
     </div>
 
-    <script src="i18n.js?v=1"></script>
-    <script src="common.js?v=1"></script>
-    <script src="dashboard.js?v=1"></script>
+    <script src="i18n.js?v=3"></script>
+    <script src="common.js?v=3"></script>
+    <script src="dashboard.js?v=3"></script>
 </body>
 </html>

@@ -57,7 +57,9 @@ const ReportKapAndreevoCash = document.getElementById("ReportKapAndreevoCash");
 const ReportKapAndreevoCard = document.getElementById("ReportKapAndreevoCard");
 const ReportLesovoCash = document.getElementById("ReportLesovoCash");
 const ReportLesovoCard = document.getElementById("ReportLesovoCard");
+const ReportExpenses = document.getElementById("ReportExpenses");
 const ReportTotal = document.getElementById("ReportTotal");
+const ReportNetTotal = document.getElementById("ReportNetTotal");
 const ReportMsg = document.getElementById("ReportMsg");
 const CashInflowGrid = document.getElementById("CashInflowGrid");
 const CashInflowMsg = document.getElementById("CashInflowMsg");
@@ -240,6 +242,19 @@ function normalizePayments(data) {
       pickPaymentValue(data, ["lesovoCard", "LesovoCard", "cardLesovo"]) ??
       pickPaymentValue(les, ["card"]) ??
       0,
+    // Company expenses for the period (money paid out, not collected). The
+    // server may return it flat or as { expenses: { total } }.
+    expenses:
+      pickPaymentValue(data, [
+        "expenses",
+        "Expenses",
+        "totalExpenses",
+        "TotalExpenses",
+        "expense",
+        "Expense",
+      ]) ??
+      pickPaymentValue(data.expenses || data.Expenses, ["total", "Total", "amount", "Amount"]) ??
+      0,
   };
 }
 
@@ -277,7 +292,14 @@ async function loadReport() {
   if (from) qs.push("from=" + encodeURIComponent(from));
   if (to) qs.push("to=" + encodeURIComponent(to));
 
-  let payments = { kapAndreevoCash: 0, kapAndreevoCard: 0, lesovoCash: 0, lesovoCard: 0 };
+  let payments = {
+    kapAndreevoCash: 0,
+    kapAndreevoCard: 0,
+    lesovoCash: 0,
+    lesovoCard: 0,
+    expenses: 0,
+  };
+
   let brokerBalance = 0;
   ReportMsg.textContent = "";
   ReportMsg.className = "msg report-msg";
@@ -298,6 +320,12 @@ async function loadReport() {
   ReportLesovoCash.textContent = formatMoney(payments.lesovoCash);
   ReportLesovoCard.textContent = formatMoney(payments.lesovoCard);
 
+  // Expenses are money paid out, so they are shown as a negative amount: the
+  // five money cells then add up to the grand total exactly, and the grand
+  // total plus the (negative) expenses gives the total after expenses.
+  const expenses = Math.abs(Number(payments.expenses) || 0);
+  ReportExpenses.textContent = formatMoney(-expenses);
+
   const total =
     brokerBalance +
     payments.kapAndreevoCash +
@@ -305,6 +333,7 @@ async function loadReport() {
     payments.lesovoCash +
     payments.lesovoCard;
   ReportTotal.textContent = formatMoney(total);
+  ReportNetTotal.textContent = formatMoney(total - expenses);
 }
 
 // --- Cash inflow report (per-broker inflows) ---------------------------------
@@ -459,9 +488,13 @@ function buildCashInflowCard(row, isTotal, heat, sortKey, sortDir, onSort) {
   const stats = document.createElement("div");
   stats.className = "cashinflow-stats";
 
-  const addStat = (key, label, value, cls, color) => {
+  // `hint` is the one-line explanation shown in a tooltip on hover/focus.
+  // Touch devices have no hover, so the same text is listed in the
+  // "What do these numbers mean?" glossary above the cards.
+  const addStat = (key, label, value, cls, color, hint) => {
     const item = document.createElement("div");
     item.className = "cashinflow-stat";
+    if (hint) item.setAttribute("data-tooltip", hint);
 
     if (isTotal) {
       item.classList.add("cashinflow-stat-sort");
@@ -498,28 +531,32 @@ function buildCashInflowCard(row, isTotal, heat, sortKey, sortDir, onSort) {
     t("report.cashInflow.totalOwed"),
     row.owedForPeriod,
     "",
-    isTotal ? "var(--accent)" : ""
+    isTotal ? "var(--accent)" : "",
+    t("report.cashInflow.totalOwed.hint")
   );
   addStat(
     "cashInflow",
     t("report.cashInflow.cashInflow"),
     row.cashInflow,
     "cashinflow-inflow",
-    ""
+    "",
+    t("report.cashInflow.cashInflow.hint")
   );
   addStat(
     "weeklyBalance",
     t("report.cashInflow.weeklyBalance"),
     row.weeklyBalance,
     row.weeklyBalance > 0 ? "cashinflow-weekly-pos" : "cashinflow-weekly-neg",
-    ""
+    "",
+    t("report.cashInflow.weeklyBalance.hint")
   );
   addStat(
     "leftoverBalance",
     t("report.cashInflow.leftover"),
     row.leftoverBalance,
     "cashinflow-leftover",
-    ""
+    "",
+    t("report.cashInflow.leftover.hint")
   );
 
   card.appendChild(nameEl);
