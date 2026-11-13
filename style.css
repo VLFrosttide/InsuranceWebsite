@@ -1031,6 +1031,14 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   white-space: nowrap;
 }
 
+/* Count of policies per price ("By price: 10× 19 EUR, 20× 30 EUR"). */
+.policies-breakdown {
+  margin: -2px 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .history-filters {
   display: flex;
   align-items: center;

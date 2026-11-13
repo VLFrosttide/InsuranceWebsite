@@ -45,6 +45,7 @@ const PoliciesTo = document.getElementById("PoliciesTo");
 const PoliciesDateClear = document.getElementById("PoliciesDateClear");
 const PoliciesExportBtn = document.getElementById("PoliciesExportBtn");
 const PoliciesTotalBalance = document.getElementById("PoliciesTotalBalance");
+const PoliciesBreakdown = document.getElementById("PoliciesBreakdown");
 const PoliciesPager = document.getElementById("PoliciesPager");
 const PoliciesPrevBtn = document.getElementById("PoliciesPrevBtn");
 const PoliciesNextBtn = document.getElementById("PoliciesNextBtn");
@@ -791,6 +792,60 @@ function renderPoliciesTotal() {
     t("policies.totalBalance") + ": " + formatMoney(total);
 }
 
+// --- Price breakdown ---------------------------------------------------------
+// Group the listed policies by price (and currency) so the panel and the Excel
+// export can show how many policies of each price there are, e.g.
+// "10× 19 EUR, 20× 30 EUR". Prices are rounded like everywhere else on the
+// site (whole amounts only).
+function policyPriceGroups(policies) {
+  const groups = new Map();
+  for (const p of policies || []) {
+    const price = Math.round(Number(p.Price || 0));
+    const currency = String(p.CurrencyType ?? "").trim();
+    const key = price + "|" + currency;
+    const group = groups.get(key);
+    if (group) {
+      group.count += 1;
+    } else {
+      groups.set(key, { price, currency, count: 1 });
+    }
+  }
+  // Cheapest type first, so the breakdown always reads the same way.
+  return Array.from(groups.values()).sort(
+    (a, b) => a.price - b.price || a.currency.localeCompare(b.currency)
+  );
+}
+
+// "19 EUR" (the currency is left out when the API does not return one).
+function policyPriceLabel(group) {
+  return formatMoney(group.price) + (group.currency ? " " + group.currency : "");
+}
+
+// One entry per price type: "10× 19 EUR".
+function policiesBreakdownItems(policies) {
+  return policyPriceGroups(policies).map((group) =>
+    t("policies.breakdownItem", {
+      count: group.count,
+      price: policyPriceLabel(group),
+    })
+  );
+}
+
+// "By price: 10× 19 EUR, 20× 30 EUR" under the panel title. Hidden while
+// pricing is hidden for the broker (the panel shows no prices at all then).
+function renderPoliciesBreakdown() {
+  const items = policiesHidePricing ? [] : policiesBreakdownItems(policiesData);
+  if (!items.length) {
+    PoliciesBreakdown.textContent = "";
+    PoliciesBreakdown.classList.add("hidden");
+    return;
+  }
+  PoliciesBreakdown.textContent = t("policies.breakdown", {
+    items: items.join(", "),
+  });
+  PoliciesBreakdown.classList.remove("hidden");
+}
+
 function policySortValue(p) {
   if (policySort.key === "created") {
     const d = toDate(p.CreationDate);
@@ -987,6 +1042,7 @@ function renderPolicyTable() {
   }
   updatePolicySortHeaders();
   renderPoliciesTotal();
+  renderPoliciesBreakdown();
   renderPoliciesPager(totalPages);
 }
 
@@ -1085,6 +1141,30 @@ function buildPoliciesExcel(policies, hidePricing) {
       "</tr>";
   }
 
+  // How many policies of each price there are (e.g. "10× 19 EUR"), listed under
+  // the total so the export carries the same summary as the panel.
+  let breakdownHtml = "";
+  const breakdownItems = hidePricing ? [] : policiesBreakdownItems(policies);
+  if (breakdownItems.length) {
+    const colspan = headers.length;
+    breakdownHtml =
+      '<tr><td colspan="' +
+      colspan +
+      '" style="font-weight:bold; padding-top:12px;">' +
+      escapeHtml(t("policies.breakdownTitle")) +
+      "</td></tr>" +
+      breakdownItems
+        .map(
+          (item) =>
+            '<tr><td colspan="' +
+            colspan +
+            '" style=\'mso-number-format:"@";\'>' +
+            escapeHtml(item) +
+            "</td></tr>"
+        )
+        .join("");
+  }
+
   return (
     '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
     'xmlns:x="urn:schemas-microsoft-com:office:excel" ' +
@@ -1102,6 +1182,7 @@ function buildPoliciesExcel(policies, hidePricing) {
     "</tr>" +
     bodyHtml +
     totalHtml +
+    breakdownHtml +
     "</table></body></html>"
   );
 }
@@ -1243,6 +1324,7 @@ async function loadPolicies() {
       "</td>";
     PoliciesRows.appendChild(row);
     PoliciesTotalBalance.textContent = "";
+    renderPoliciesBreakdown();
     PoliciesPanel.classList.remove("hidden");
     InactivePoliciesPanel.classList.add("hidden");
   }
