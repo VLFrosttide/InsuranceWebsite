@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="title.dashboard">Broker Bi-Weekly Report</title>
-    <link rel="stylesheet" href="style.css?v=3"/>
+    <link rel="stylesheet" href="style.css?v=4"/>
 </head>
 <body class="app-body">
     <header class="topbar">
@@ -234,6 +234,10 @@
                 <div id="UnderlingsTotals" class="underling-totals hidden">
                     <div class="underling-totals-head" data-i18n="underlings.totals.title">Totals (incl. own insurances)</div>
                     <div class="underling-totals-body">
+                        <span class="balance-chip owed">
+                            <span class="balance-label" id="TotalsTotalOwedLabel" data-i18n="underlings.totalOwed">Total owed</span>
+                            <span id="TotalsTotalOwed" class="balance-value">—</span>
+                        </span>
                         <span class="balance-chip show">
                             <span class="balance-label" data-i18n="underlings.showOnly">Show-only</span>
                             <span id="TotalsShowOnly" class="balance-value">—</span>
@@ -339,8 +343,8 @@
         </div>
     </div>
 
-    <script src="i18n.js?v=3"></script>
-    <script src="common.js?v=3"></script>
-    <script src="dashboard.js?v=3"></script>
+    <script src="i18n.js?v=4"></script>
+    <script src="common.js?v=4"></script>
+    <script src="dashboard.js?v=4"></script>
 </body>
 </html>

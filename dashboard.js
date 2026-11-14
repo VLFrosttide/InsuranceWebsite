@@ -1966,6 +1966,8 @@ const UnderlingsTotals = document.getElementById("UnderlingsTotals");
 const TotalsShowOnly = document.getElementById("TotalsShowOnly");
 const TotalsMainPrice = document.getElementById("TotalsMainPrice");
 const TotalsProfit = document.getElementById("TotalsProfit");
+const TotalsTotalOwed = document.getElementById("TotalsTotalOwed");
+const TotalsTotalOwedLabel = document.getElementById("TotalsTotalOwedLabel");
 const PricingOverlay = document.getElementById("PricingOverlay");
 const PricingTitle = document.getElementById("PricingTitle");
 const PricingMeta = document.getElementById("PricingMeta");
@@ -2156,6 +2158,9 @@ function buildBalanceChip(label, value, cls) {
 function renderUnderlings(list, data) {
   UnderlingsList.innerHTML = "";
   let anyVisible = false;
+  // Sum of every sub-broker's current balance (negative = still owed). It is
+  // added to the main broker's own balance for the combined "Total owed".
+  let subBrokersBalance = 0;
   for (const u of list) {
     const li = document.createElement("li");
     li.className = "underling-item";
@@ -2207,10 +2212,11 @@ function renderUnderlings(list, data) {
           "profit" + (profit < 0 ? " negative" : "")
         )
       );
-      // Current balance of this sub-broker: a negative balance is money owed
-      // (shown as a positive "Total owed"), a positive one is leftover credit
-      // carried into the next cycle.
+      // Current balance of this sub-broker, as stored on the broker record:
+      // a negative balance is money owed (shown as a positive "Total owed"),
+      // a positive one is leftover credit carried into the next cycle.
       const balance = Number(u.CashBalance ?? 0);
+      subBrokersBalance += balance;
       const owes = balance < 0;
       actions.appendChild(
         buildBalanceChip(
@@ -2228,10 +2234,10 @@ function renderUnderlings(list, data) {
     UnderlingsList.appendChild(li);
   }
 
-  renderUnderlingsTotals(data, anyVisible);
+  renderUnderlingsTotals(data, anyVisible, subBrokersBalance);
 }
 
-function renderUnderlingsTotals(data, anyVisible) {
+function renderUnderlingsTotals(data, anyVisible, subBrokersBalance) {
   if (!UnderlingsTotals) return;
   const totals = data && data.totals;
   if (!anyVisible || !totals) {
@@ -2250,6 +2256,30 @@ function renderUnderlingsTotals(data, anyVisible) {
   TotalsProfit.textContent = formatSignedMoney(profit);
   const profitChip = TotalsProfit.closest(".balance-chip");
   if (profitChip) profitChip.classList.toggle("negative", profit < 0);
+
+  // Combined total owed by the main broker: its own current balance plus the
+  // current balance of every sub-broker. Negative = money still owed, so it is
+  // shown as a positive "Total owed"; positive = leftover credit.
+  const ownBroker = brokers.find((b) => Number(b.id) === Number(myBrokerId));
+  const ownBalance = Number((ownBroker && ownBroker.CashBalance) ?? 0);
+  const totalBalance = ownBalance + Number(subBrokersBalance || 0);
+  const totalOwes = totalBalance < 0;
+  if (TotalsTotalOwed) {
+    TotalsTotalOwed.textContent = formatMoney(Math.abs(totalBalance));
+  }
+  if (TotalsTotalOwedLabel) {
+    TotalsTotalOwedLabel.textContent = totalOwes
+      ? t("underlings.totalOwed")
+      : t("underlings.leftoverBalance");
+  }
+  const totalChip = TotalsTotalOwed
+    ? TotalsTotalOwed.closest(".balance-chip")
+    : null;
+  if (totalChip) {
+    totalChip.classList.toggle("owed", totalOwes);
+    totalChip.classList.toggle("leftover", !totalOwes);
+    totalChip.title = t("underlings.totalOwed.hint");
+  }
 }
 
 UnderlingFrom.addEventListener("change", () => {
