@@ -1466,6 +1466,36 @@ button,
   font-size: 13px;
 }
 
+/* Arrows that move the From/To range one payment cycle at a time. */
+.cycle-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cycle-arrow:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.cycle-arrow:disabled {
+  color: var(--muted);
+  border-color: var(--border);
+  background: transparent;
+  cursor: default;
+  opacity: 0.5;
+}
+
 .underling-list {
   list-style: none;
   margin: 16px 0 0;
@@ -1560,6 +1590,18 @@ button,
   color: var(--danger);
   border-color: rgba(248, 113, 113, 0.4);
   background: rgba(248, 113, 113, 0.12);
+}
+
+.balance-chip.owed {
+  color: var(--danger);
+  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.balance-chip.leftover {
+  color: var(--success);
+  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(74, 222, 128, 0.12);
 }
 
 .underling-totals {

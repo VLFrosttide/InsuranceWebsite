@@ -1501,6 +1501,9 @@ async function load() {
     const data = await api("/brokers/biweekly");
     brokers = data.brokers || [];
     schedule = data.schedule || null;
+    // The sub-brokers report is scoped to the current bi-weekly cycle, which
+    // is only known once the schedule above has loaded.
+    if (isBroker) await loadUnderlings();
     renderBrokerList();
     loadReport();
     loadCashInflow();
@@ -1957,6 +1960,8 @@ const UnderlingsList = document.getElementById("UnderlingsList");
 const UnderlingFrom = document.getElementById("UnderlingFrom");
 const UnderlingTo = document.getElementById("UnderlingTo");
 const UnderlingClearBtn = document.getElementById("UnderlingClearBtn");
+const UnderlingPrevCycle = document.getElementById("UnderlingPrevCycle");
+const UnderlingNextCycle = document.getElementById("UnderlingNextCycle");
 const UnderlingsTotals = document.getElementById("UnderlingsTotals");
 const TotalsShowOnly = document.getElementById("TotalsShowOnly");
 const TotalsMainPrice = document.getElementById("TotalsMainPrice");
@@ -1973,6 +1978,89 @@ const myBrokerId = getBrokerId() ? Number(getBrokerId()) : null;
 let pricingTarget = null; // { id, name }
 let pricingData = null;   // { vehicleType: { duration: price } }
 
+// The date inputs default to the current bi-weekly payment cycle. Once the
+// user picks dates this is set, so later reloads (language change, pricing
+// save) keep their range instead of snapping back to the cycle.
+let underlingsRangeTouched = false;
+
+// The current bi-weekly payment cycle (the 14 days that settle on the next
+// cutoff). Until the schedule has loaded, fall back to the last two weeks.
+function defaultUnderlingRange() {
+  const start =
+    schedule && schedule.periodStart ? toDate(schedule.periodStart) : null;
+  const end = schedule && schedule.periodEnd ? toDate(schedule.periodEnd) : null;
+  if (start && end) {
+    return { from: localDateString(start), to: localDateString(end) };
+  }
+  const e = new Date();
+  const s = new Date();
+  s.setDate(e.getDate() - 13);
+  return { from: localDateString(s), to: localDateString(e) };
+}
+
+// Length of one payment cycle in days, as reported by the server (14).
+function underlingCycleDays() {
+  const days = Number(schedule && schedule.periodLengthDays);
+  return Number.isFinite(days) && days > 0 ? days : 14;
+}
+
+// The next-cycle arrow stops at the cycle that ends the current period, since
+// there are no newer insurances to report yet.
+function updateUnderlingCycleButtons() {
+  if (!UnderlingNextCycle) return;
+  const latestEnd = toDate(defaultUnderlingRange().to);
+  const selectedEnd = toDate(UnderlingTo ? UnderlingTo.value : "");
+  UnderlingNextCycle.disabled = Boolean(
+    latestEnd && selectedEnd && selectedEnd.getTime() >= latestEnd.getTime()
+  );
+}
+
+// Write the cycle default into the From/To inputs. A range the user picked is
+// left alone unless `force` is set (the Clear button).
+function applyUnderlingDefaultRange(force) {
+  if (!UnderlingFrom || !UnderlingTo) return false;
+  if (!force && underlingsRangeTouched) return false;
+  const range = defaultUnderlingRange();
+  const changed =
+    UnderlingFrom.value !== range.from || UnderlingTo.value !== range.to;
+  UnderlingFrom.value = range.from;
+  UnderlingTo.value = range.to;
+  updateUnderlingCycleButtons();
+  return changed;
+}
+
+// Keep the cycle-arrow tooltips in the active language.
+function localizeUnderlingCycleArrows() {
+  const prev = t("underlings.prevCycle");
+  const next = t("underlings.nextCycle");
+  if (UnderlingPrevCycle) {
+    UnderlingPrevCycle.title = prev;
+    UnderlingPrevCycle.setAttribute("aria-label", prev);
+  }
+  if (UnderlingNextCycle) {
+    UnderlingNextCycle.title = next;
+    UnderlingNextCycle.setAttribute("aria-label", next);
+  }
+}
+
+// Move the whole From/To range exactly one payment cycle back (-1) or
+// forward (+1).
+function shiftUnderlingsCycle(direction) {
+  if (!UnderlingFrom || !UnderlingTo) return;
+  const fallback = defaultUnderlingRange();
+  const from = toDate(UnderlingFrom.value || fallback.from);
+  const to = toDate(UnderlingTo.value || fallback.to);
+  if (!from || !to) return;
+  const days = underlingCycleDays() * direction;
+  from.setDate(from.getDate() + days);
+  to.setDate(to.getDate() + days);
+  UnderlingFrom.value = localDateString(from);
+  UnderlingTo.value = localDateString(to);
+  underlingsRangeTouched = true;
+  updateUnderlingCycleButtons();
+  loadUnderlings();
+}
+
 function underlingDateParams() {
   const from = UnderlingFrom ? UnderlingFrom.value.trim() : "";
   const to = UnderlingTo ? UnderlingTo.value.trim() : "";
@@ -1984,6 +2072,9 @@ function underlingDateParams() {
 
 async function loadUnderlings() {
   if (!isBroker || !myBrokerId || !SubBrokersPanel) return;
+  // Ensure the report is always scoped to a range (the current cycle by
+  // default) instead of falling back to the broker's whole history.
+  applyUnderlingDefaultRange(false);
   try {
     const data = await api(
       "/brokers/" + myBrokerId + "/underlings" + underlingDateParams()
@@ -2116,6 +2207,18 @@ function renderUnderlings(list, data) {
           "profit" + (profit < 0 ? " negative" : "")
         )
       );
+      // Current balance of this sub-broker: a negative balance is money owed
+      // (shown as a positive "Total owed"), a positive one is leftover credit
+      // carried into the next cycle.
+      const balance = Number(u.CashBalance ?? 0);
+      const owes = balance < 0;
+      actions.appendChild(
+        buildBalanceChip(
+          owes ? t("underlings.totalOwed") : t("underlings.leftoverBalance"),
+          formatMoney(Math.abs(balance)),
+          owes ? "owed" : "leftover"
+        )
+      );
     }
 
     actions.appendChild(exportBtn);
@@ -2149,13 +2252,25 @@ function renderUnderlingsTotals(data, anyVisible) {
   if (profitChip) profitChip.classList.toggle("negative", profit < 0);
 }
 
-UnderlingFrom.addEventListener("change", loadUnderlings);
-UnderlingTo.addEventListener("change", loadUnderlings);
-UnderlingClearBtn.addEventListener("click", () => {
-  UnderlingFrom.value = "";
-  UnderlingTo.value = "";
+UnderlingFrom.addEventListener("change", () => {
+  underlingsRangeTouched = true;
+  updateUnderlingCycleButtons();
   loadUnderlings();
 });
+UnderlingTo.addEventListener("change", () => {
+  underlingsRangeTouched = true;
+  updateUnderlingCycleButtons();
+  loadUnderlings();
+});
+// Clearing the filters goes back to the cycle default (not "all time").
+UnderlingClearBtn.addEventListener("click", () => {
+  underlingsRangeTouched = false;
+  applyUnderlingDefaultRange(true);
+  loadUnderlings();
+});
+UnderlingPrevCycle.addEventListener("click", () => shiftUnderlingsCycle(-1));
+UnderlingNextCycle.addEventListener("click", () => shiftUnderlingsCycle(1));
+localizeUnderlingCycleArrows();
 
 // Open a date input's calendar from anywhere inside the field (not only the
 // small calendar glyph on the right). showPicker() is preferred; when it is
@@ -2281,7 +2396,6 @@ PricingSaveBtn.addEventListener("click", async () => {
     PricingMeta.textContent = "";
     setMsg(PricingMsg, t("pricing.saved"), false);
     renderPricingGrid();
-    if (isBroker) await loadUnderlings();
     await load();
   } catch (err) {
     setMsg(PricingMsg, err.message || t("pricing.saveFailed"), true);
@@ -2291,7 +2405,6 @@ PricingSaveBtn.addEventListener("click", async () => {
 PricingCloseBtn.addEventListener("click", () => closeOverlay(PricingOverlay));
 
 onLangChange(() => {
+  localizeUnderlingCycleArrows();
   if (isBroker) loadUnderlings();
 });
-
-if (isBroker) loadUnderlings();
