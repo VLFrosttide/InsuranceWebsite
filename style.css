@@ -1039,6 +1039,18 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   line-height: 1.5;
 }
 
+/* The annulled policies' own line ("Annulled: 2× 9 EUR"), tinted like their
+   table rows so the two never get mixed up. */
+.policies-breakdown-annulled {
+  color: #f43f5e;
+  font-style: italic;
+}
+
+/* A cell whose price is the live annulled price, not the policy's original. */
+.report-table td.annulled-price {
+  font-style: italic;
+}
+
 .history-filters {
   display: flex;
   align-items: center;

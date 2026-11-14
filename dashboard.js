@@ -787,7 +787,9 @@ function renderPoliciesTotal() {
     return;
   }
   PoliciesTotalBalance.classList.remove("hidden");
-  const total = policiesData.reduce((sum, p) => sum + Number(p.Price || 0), 0);
+  // Annulled policies only contribute their live annulled price (the rest of
+  // their price was refunded), so the total matches the sum of the breakdown.
+  const total = policiesData.reduce((sum, p) => sum + policyEffectivePrice(p), 0);
   PoliciesTotalBalance.textContent =
     t("policies.totalBalance") + ": " + formatMoney(total);
 }
@@ -797,10 +799,41 @@ function renderPoliciesTotal() {
 // export can show how many policies of each price there are, e.g.
 // "10× 19 EUR, 20× 30 EUR". Prices are rounded like everywhere else on the
 // site (whole amounts only).
-function policyPriceGroups(policies) {
+//
+// Annulled policies are kept out of these groups: their price was refunded, so
+// they are listed on their own line under their live annulled price (the
+// annulment fee the server keeps — see `policyAnnulledPrice`).
+function policyAnnulledPrice(p) {
+  if (!p) return 0;
+  // `AnnulFee` is the live fee stored with the annulment; the other names are
+  // accepted in case the API starts exposing the annulled price by itself.
+  for (const key of [
+    "AnnulFee", "annulFee", "AnnulPrice", "annulPrice",
+    "AnnulledPrice", "annulledPrice",
+  ]) {
+    const v = p[key];
+    if (v === undefined || v === null || String(v).trim() === "") continue;
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  // Older servers do not send the fee at all: fall back to the policy price so
+  // the annulled line still shows an amount instead of 0.
+  const price = Number(p.Price);
+  return Number.isFinite(price) ? price : 0;
+}
+
+// The amount a policy still contributes to the totals: a normal policy its
+// price, an annulled one only its live annulled price (the rest was refunded).
+function policyEffectivePrice(p) {
+  if (isPolicyAnnulled(p)) return policyAnnulledPrice(p);
+  const price = Number(p && p.Price);
+  return Number.isFinite(price) ? price : 0;
+}
+
+function groupPoliciesByPrice(policies, priceOf) {
   const groups = new Map();
   for (const p of policies || []) {
-    const price = Math.round(Number(p.Price || 0));
+    const price = Math.round(priceOf(p));
     const currency = String(p.CurrencyType ?? "").trim();
     const key = price + "|" + currency;
     const group = groups.get(key);
@@ -816,14 +849,30 @@ function policyPriceGroups(policies) {
   );
 }
 
+// Active policies only — annulled ones are counted on their own line.
+function policyPriceGroups(policies) {
+  return groupPoliciesByPrice(
+    (policies || []).filter((p) => !isPolicyAnnulled(p)),
+    (p) => Number(p.Price || 0)
+  );
+}
+
+// Annulled policies, grouped by the live annulled price they contribute.
+function policyAnnulledGroups(policies) {
+  return groupPoliciesByPrice(
+    (policies || []).filter((p) => isPolicyAnnulled(p)),
+    policyAnnulledPrice
+  );
+}
+
 // "19 EUR" (the currency is left out when the API does not return one).
 function policyPriceLabel(group) {
   return formatMoney(group.price) + (group.currency ? " " + group.currency : "");
 }
 
 // One entry per price type: "10× 19 EUR".
-function policiesBreakdownItems(policies) {
-  return policyPriceGroups(policies).map((group) =>
+function policyPriceGroupItems(groups) {
+  return groups.map((group) =>
     t("policies.breakdownItem", {
       count: group.count,
       price: policyPriceLabel(group),
@@ -831,18 +880,50 @@ function policiesBreakdownItems(policies) {
   );
 }
 
-// "By price: 10× 19 EUR, 20× 30 EUR" under the panel title. Hidden while
-// pricing is hidden for the broker (the panel shows no prices at all then).
+function policiesBreakdownItems(policies) {
+  return policyPriceGroupItems(policyPriceGroups(policies));
+}
+
+// "3× 9 EUR" lines for the annulled policies (their live annulled price).
+function policiesAnnulledBreakdownItems(policies) {
+  return policyPriceGroupItems(policyAnnulledGroups(policies));
+}
+
+// One line inside the breakdown block; the annulled line gets its own class so
+// it can be tinted like the annulled table rows.
+function policiesBreakdownLine(text, annulled) {
+  const line = document.createElement("div");
+  if (annulled) line.className = "policies-breakdown-annulled";
+  line.textContent = text;
+  return line;
+}
+
+// "By price: 10× 19 EUR, 20× 30 EUR" under the panel title, followed by
+// "Annulled: 2× 9 EUR" for the annulled policies. Hidden while pricing is
+// hidden for the broker (the panel shows no prices at all then).
 function renderPoliciesBreakdown() {
   const items = policiesHidePricing ? [] : policiesBreakdownItems(policiesData);
-  if (!items.length) {
-    PoliciesBreakdown.textContent = "";
+  const annulledItems = policiesHidePricing
+    ? []
+    : policiesAnnulledBreakdownItems(policiesData);
+  PoliciesBreakdown.textContent = "";
+  if (!items.length && !annulledItems.length) {
     PoliciesBreakdown.classList.add("hidden");
     return;
   }
-  PoliciesBreakdown.textContent = t("policies.breakdown", {
-    items: items.join(", "),
-  });
+  if (items.length) {
+    PoliciesBreakdown.appendChild(
+      policiesBreakdownLine(t("policies.breakdown", { items: items.join(", ") }))
+    );
+  }
+  if (annulledItems.length) {
+    PoliciesBreakdown.appendChild(
+      policiesBreakdownLine(
+        t("policies.breakdownAnnulled", { items: annulledItems.join(", ") }),
+        true
+      )
+    );
+  }
   PoliciesBreakdown.classList.remove("hidden");
 }
 
@@ -1005,6 +1086,16 @@ function renderPolicyTable() {
     const annulled = isPolicyAnnulled(p);
     const row = document.createElement("tr");
     if (annulled) row.classList.add("annulled");
+    // An annulled policy shows its live annulled price (the annulment fee it
+    // still contributes) instead of the refunded price; the original price
+    // stays available as a tooltip.
+    const priceCell = annulled
+      ? '<td class="num annulled-price" title="' +
+        escapeHtml(t("policies.originalPrice", { price: formatMoney(p.Price) })) +
+        '">' +
+        formatMoney(policyEffectivePrice(p)) +
+        "</td>"
+      : '<td class="num">' + formatMoney(p.Price) + "</td>";
     row.innerHTML =
       "<td>" +
       escapeHtml(p.PolicyNumber) +
@@ -1017,9 +1108,7 @@ function renderPolicyTable() {
       "<td>" + escapeHtml(p.BlancNumber) + "</td>" +
       (policiesHidePricing
         ? ""
-        : '<td class="num">' +
-          formatMoney(p.Price) +
-          "</td>" +
+        : priceCell +
           "<td>" +
           escapeHtml(p.CurrencyType) +
           "</td>") +
@@ -1111,9 +1200,11 @@ function buildPoliciesExcel(policies, hidePricing) {
         textCell(policyCarNumber(p)) +
         textCell(policyDuration(p));
       if (!hidePricing) {
+        // An annulled policy contributes its live annulled price (the annulment
+        // fee); the rest of its price was refunded.
         cells +=
           '<td style=\'mso-number-format:"0";\'>' +
-          Math.round(Number(p.Price || 0)) +
+          Math.round(policyEffectivePrice(p)) +
           "</td>" +
           textCell(p.CurrencyType);
       }
@@ -1132,7 +1223,7 @@ function buildPoliciesExcel(policies, hidePricing) {
 
   let totalHtml = "";
   if (!hidePricing) {
-    const total = policies.reduce((sum, p) => sum + Number(p.Price || 0), 0);
+    const total = policies.reduce((sum, p) => sum + policyEffectivePrice(p), 0);
     totalHtml =
       "<tr style='font-weight:bold;'>" +
       '<td colspan="4">' + escapeHtml(t("policies.totalSum")) + "</td>" +
@@ -1142,18 +1233,31 @@ function buildPoliciesExcel(policies, hidePricing) {
   }
 
   // How many policies of each price there are (e.g. "10× 19 EUR"), listed under
-  // the total so the export carries the same summary as the panel.
+  // the total so the export carries the same summary as the panel. Annulled
+  // policies are listed apart, at their live annulled price.
   let breakdownHtml = "";
-  const breakdownItems = hidePricing ? [] : policiesBreakdownItems(policies);
-  if (breakdownItems.length) {
-    const colspan = headers.length;
-    breakdownHtml =
+  const breakdownSections = hidePricing
+    ? []
+    : [
+        {
+          title: t("policies.breakdownTitle"),
+          items: policiesBreakdownItems(policies),
+        },
+        {
+          title: t("policies.breakdownAnnulledTitle"),
+          items: policiesAnnulledBreakdownItems(policies),
+        },
+      ];
+  const colspan = headers.length;
+  for (const section of breakdownSections) {
+    if (!section.items.length) continue;
+    breakdownHtml +=
       '<tr><td colspan="' +
       colspan +
       '" style="font-weight:bold; padding-top:12px;">' +
-      escapeHtml(t("policies.breakdownTitle")) +
+      escapeHtml(section.title) +
       "</td></tr>" +
-      breakdownItems
+      section.items
         .map(
           (item) =>
             '<tr><td colspan="' +
