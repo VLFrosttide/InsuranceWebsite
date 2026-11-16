@@ -7,7 +7,7 @@
 
 const API_BASE =
   new URLSearchParams(window.location.search).get("api") ||
-  "https://lavender-quail-935384.hostingersite.com";
+  "https://bulsig.online";
 
 const ROLE_LABELS = { "1": "Admin", "2": "Worker", "3": "Client" };
 
